@@ -1,13 +1,15 @@
 import uuid
-from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
-from activealchemy.engine import ActiveEngine
+
 from activealchemy.activerecord import ActiveRecordMixin, PKMixin, UpdateMixin
+from activealchemy.engine import ActiveEngine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class BaseMixin(DeclarativeBase, ActiveRecordMixin):
     """Base mixin class for all models."""
 
     __active_engine__: ActiveEngine
+
 
 class Resident(BaseMixin, PKMixin, UpdateMixin):
     """User model."""
@@ -26,7 +28,8 @@ class City(BaseMixin, PKMixin, UpdateMixin):
     name: Mapped[str] = mapped_column(init=True)
     code: Mapped[str] = mapped_column(init=True)
     country_id: Mapped[uuid.UUID] = mapped_column(init=False)
-    #country: Mapped["Country"] = relationship("Country", back_populates="city", init=False)
+    # country: Mapped["Country"] = relationship("Country", back_populates="city", init=False)
+
 
 class Country(BaseMixin, PKMixin, UpdateMixin):
     """Country model."""

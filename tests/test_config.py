@@ -1,5 +1,5 @@
-import activealchemy
 from activealchemy.config import PostgreSQLConfigSchema
+
 
 def test_config():
     PostgresConfig = PostgreSQLConfigSchema(db="activealchemy-test", port=5434)

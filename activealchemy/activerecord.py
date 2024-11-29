@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any, Self
 
 import sqlalchemy as sa
+from pydantic_core import to_jsonable_python
 from sqlalchemy import func
 from sqlalchemy.orm import (
     ColumnProperty,
@@ -55,14 +56,6 @@ class ActiveRecordMixin:
     def id_key(self):
         return self.__class__.__name__ + ":" + str(self.id)
 
-    # session methods
-    __schema__ = None
-
-    @classmethod
-    def schema(cls):
-        """Return the name of the schema of this class as a string."""
-        return cls.__schema__
-
     @classmethod
     def session(cls):
         """Return the session associated to this class.
@@ -73,29 +66,33 @@ class ActiveRecordMixin:
         return session
 
     @classmethod
-    def select(cls):
+    def select(cls) -> sa.Select:
         """Return the SQLAlchemy query object associated to this class.
 
         It is equivalent to call session.query(MyClass).
         """
         return sa.select(cls)
 
-    def to_dict(self) -> dict[str, Any]:
+    def dump_model(self, with_meta: bool = True) -> dict[str, Any]:
+        """Return a dict representation of the instance."""
+        return to_jsonable_python(self.to_dict(with_meta))
+
+    def to_dict(self, with_meta: bool = True) -> dict[str, Any]:
         """Generate a JSON-style nested dict structure from an object."""
         if hasattr(self, "__mapper__"):
             col_prop_names = [p.key for p in self.__mapper__.iterate_properties if isinstance(p, ColumnProperty)]
             data = dict((name, getattr(self, name)) for name in col_prop_names)
         else:
             data = self.__dict__.copy()
-        data.update({"_cls": self.__class__.__name__})
+        if with_meta:
+            classname = ":".join([self.__class__.__module__, self.__class__.__name__])
+            data.update({"__metadata__": {"model": classname, "table": self.__tablename__, "schema": self.__schema__}})
         return data
 
     def flush(self) -> None:
         """Flush all changes to this object to the database."""
-        obj_session = object_session(self)
-        if obj_session is None:
-            raise sa.orm.exc.UnmappedInstanceError(self)
-        obj_session.flush([self])
+
+        self.obj_session().flush([self])
 
     def delete(self) -> None:
         """Mark the instance as deleted.
@@ -104,43 +101,40 @@ class ActiveRecordMixin:
         This is equivalent to:
         session.delete(myObj)
         """
-        return self.session().delete(self)
+        self.session().delete(self)
 
-    # def expire(self, *args, **kwargs):
-    #     """Expire the instance, forcing a refresh when it is next accessed."""
-    #     obj_session = object_session(self)
-    #     arguments = [self] + list(args)
-    #     return q(obj_session.expire, self.schema, args=arguments, kwargs=kwargs)
+    def expire(self) -> None:
+        """Expire the instance, forcing a refresh when it is next accessed."""
+        self.obj_session().expire([self])
 
     def refresh(self) -> None:
         """Query the database to refresh this instance's attributes."""
-        obj_session = object_session(self)
-        if obj_session is None:
-            raise sa.orm.exc.UnmappedInstanceError(self)
-        obj_session.refresh(self)
+        self.obj_session().refresh(self)
 
-    # def expunge(self, *args, **kwargs):
-    #     """Remove this instance fromn its session."""
-    #     obj_session = object_session(self)
-    #     arguments = [self] + list(args)
-    #     return q(obj_session.expunge, self.schema, args=arguments, kwargs=kwargs)
+    def obj_session(self) -> sa.orm.Session:
+        session = object_session(self)
+        if session is None:
+            session = self.session()
+            session.merge(self)
+            session.refresh(self)
+        return session
+
+    def expunge(self) -> None:
+        """Remove this instance fromn its session."""
+        self.obj_session().expunge(self)
 
     def commit(self) -> None:
-        """Commit the session associated to this class."""
+        """Commit the session associated to this object."""
         session = object_session(self)
         if session is not None:
             session.commit()
 
     def rollback(self) -> None:
-        """Rollback the session associated to this class."""
-        session = object_session(self)
-        if session is not None:
-            session.rollback()
+        """Rollback the session associated to this object."""
+        self.obj_session().rollback()
 
-    # def is_modified(self, *args, **kwargs):
-    #     obj_session = object_session(self)
-    #     arguments = [self] + list(args)
-    #     return q(obj_session.is_modified, self.schema, args=arguments, kwargs=kwargs)
+    def is_modified(self) -> bool:
+        return self.obj_session().is_modified([self])
 
     def add(self, commit=False):
         """Add this instance to the database."""
@@ -148,6 +142,7 @@ class ActiveRecordMixin:
         if commit:
             self.session().commit()
             self.refresh()
+        return self
 
     # query methods
     @classmethod
@@ -180,7 +175,7 @@ class ActiveRecordMixin:
         return cls.session().execute(cls.select().order_by(cls.id.desc()).limit(1)).scalars().first()
 
     @classmethod
-    def all(cls, query: sa.Select | None = None) -> list[Self]:
+    def all(cls, query: sa.Select | None = None, limit: int | None = None) -> list[Self]:
         """Returns a list of all instances of this class in the database.
 
         This is the equivalent to:
@@ -188,7 +183,9 @@ class ActiveRecordMixin:
         """
         if query is None:
             query = cls.select()
-        return cls.session().execute(query).scalars.all()
+        if limit is not None:
+            query = query.limit(limit)
+        return cls.session().execute(query).scalars().all()
 
 
 class PKMixin(MappedAsDataclass, ActiveRecordMixin):

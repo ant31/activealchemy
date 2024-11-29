@@ -18,7 +18,7 @@ class PostgreSQLConfigSchema(BaseConfig):
     port: int = Field(default=5433)
     password: str = Field(default="activealchemy")
     host: str = Field(default="localhost")
-    params: dict[str, str] = Field(default={'sslmode': 'disable'})
+    params: dict[str, str] = Field(default={"sslmode": "disable"})
     driver: str = Field(default="psycopg2")
     async_driver: str = Field(default="asyncpg")
     use_internal_pool: bool = Field(default=True)
