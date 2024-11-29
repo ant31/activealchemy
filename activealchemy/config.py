@@ -1,11 +1,9 @@
 # pylint: disable=no-self-argument
 import logging
 import logging.config
+from typing import Any, Literal
 
-from typing import Literal
-
-from pydantic import Field, BaseModel, ConfigDict
-
+from pydantic import BaseModel, ConfigDict, Field
 
 logger: logging.Logger = logging.getLogger("activealchemy")
 
@@ -15,12 +13,12 @@ class BaseConfig(BaseModel):
 
 
 class PostgreSQLConfigSchema(BaseConfig):
-    db: str = Field(default="engine")
-    user: str = Field(default="al")
-    port: int = Field(default=5432)
-    password: str = Field(default="oi")
+    db: str = Field(default="activealchemy-dev")
+    user: str = Field(default="activealchemy")
+    port: int = Field(default=5433)
+    password: str = Field(default="activealchemy")
     host: str = Field(default="localhost")
-    params: dict[str, str] = Field(default_factory=dict)
+    params: dict[str, str] = Field(default={'sslmode': 'disable'})
     driver: str = Field(default="psycopg2")
     async_driver: str = Field(default="asyncpg")
     use_internal_pool: bool = Field(default=True)

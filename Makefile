@@ -40,7 +40,7 @@ endif
 .PHONY: clear-test-db create-cache-db clean-db .check-clear
 clear-test-db:
 ifeq ($(APP_ENV), test)
-	rm -rf $(DATABASE_DATA)
+	sudo rm -rf $(DATABASE_DATA)
 endif
 
 
@@ -113,7 +113,7 @@ clean-test:
 	rm -f report.xml
 
 test:
-	poetry run py.test --cov=$(package) --verbose tests --cov-report=html --cov-report=term --cov-report xml:coverage.xml --cov-report=term-missing --junitxml=report.xml --asyncio-mode=auto
+	poetry run py.test --cov=$(package) --verbose tests --cov-report=html --cov-report=term --cov-report xml:coverage.xml --cov-report=term-missing --junitxml=report.xml
 
 coverage:
 	poetry run coverage run --source $(package) setup.py test

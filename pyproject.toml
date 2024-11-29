@@ -10,6 +10,8 @@ readme = "README.md"
 python = "^3.12"
 sqlalchemy = "^2.0.36"
 pydantic = "^2.10.2"
+psycopg = "^3.2.3"
+psycopg2 = "^2.9.10"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -28,6 +30,7 @@ pytest-cov = "*"
 bumpversion = "*"
 pytest-ordering = "*"
 ruff = "*"
+pylint-pydantic = "^0.3.2"
 
 [tool.black]
 line-length = 120

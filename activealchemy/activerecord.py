@@ -1,29 +1,33 @@
-from datetime import datetime
-from typing import Self, override
 import uuid
-from sqlalchemy import ForeignKey, create_engine, func
-from sqlalchemy.orm import DeclarativeBase, declared_attr
-from sqlalchemy.orm import Mapped, mapped_column, ColumnProperty
-from sqlalchemy.orm import MappedAsDataclass
-from sqlalchemy.orm import object_session
-from sqlalchemy.schema import MetaData
+from datetime import datetime
+from typing import Any, Self
+
 import sqlalchemy as sa
-from activealchemy.activerecord import ActiveRecord
+from sqlalchemy import func
+from sqlalchemy.orm import (
+    ColumnProperty,
+    DeclarativeBase,
+    Mapped,
+    MappedAsDataclass,
+    mapped_column,
+    object_session,
+)
+
 from activealchemy.engine import ActiveEngine
 
-
 # Base imported from orm-classes
+
 
 class Base(DeclarativeBase):
     pass
 
 
-class ActiveRecordMixin(Base):
-    """ Models mixin class """
+class ActiveRecordMixin:
+    """Models mixin class"""
+
     __tablename__ = "orm_mixin"
     __schema__ = "public"
     __active_engine__: ActiveEngine
-
 
     @classmethod
     def engine(cls):
@@ -46,8 +50,7 @@ class ActiveRecordMixin(Base):
 
     def printn(self):
         """Print the attributes of the class."""
-        print('\n'.join(f'{k}: {v}') for k, v in self.__dict__.items())
-
+        print("\n".join(f"{k}: {v}") for k, v in self.__dict__.items())
 
     def id_key(self):
         return self.__class__.__name__ + ":" + str(self.id)
@@ -69,7 +72,6 @@ class ActiveRecordMixin(Base):
         _, session = cls.__active_engine__.session()
         return session
 
-
     @classmethod
     def select(cls):
         """Return the SQLAlchemy query object associated to this class.
@@ -78,26 +80,24 @@ class ActiveRecordMixin(Base):
         """
         return sa.select(cls)
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """Generate a JSON-style nested dict structure from an object."""
-        if hasattr(self, '__mapper__'):
-            col_prop_names = [p.key for p in self.__mapper__.iterate_properties
-                              if isinstance(p, ColumnProperty)]
-            data = dict((name, getattr(self, name))
-                        for name in col_prop_names)
+        if hasattr(self, "__mapper__"):
+            col_prop_names = [p.key for p in self.__mapper__.iterate_properties if isinstance(p, ColumnProperty)]
+            data = dict((name, getattr(self, name)) for name in col_prop_names)
         else:
             data = self.__dict__.copy()
-        data.update({'_cls': self.__class__.__name__})
+        data.update({"_cls": self.__class__.__name__})
         return data
 
-    def flush(self, *args, **kwargs):
+    def flush(self) -> None:
         """Flush all changes to this object to the database."""
         obj_session = object_session(self)
         if obj_session is None:
             raise sa.orm.exc.UnmappedInstanceError(self)
         obj_session.flush([self])
 
-    def delete(self):
+    def delete(self) -> None:
         """Mark the instance as deleted.
 
         The database delete operation will occurs upon next flush().
@@ -112,12 +112,12 @@ class ActiveRecordMixin(Base):
     #     arguments = [self] + list(args)
     #     return q(obj_session.expire, self.schema, args=arguments, kwargs=kwargs)
 
-    def refresh(self):
+    def refresh(self) -> None:
         """Query the database to refresh this instance's attributes."""
         obj_session = object_session(self)
         if obj_session is None:
             raise sa.orm.exc.UnmappedInstanceError(self)
-        return obj_session.refresh(self)
+        obj_session.refresh(self)
 
     # def expunge(self, *args, **kwargs):
     #     """Remove this instance fromn its session."""
@@ -125,24 +125,22 @@ class ActiveRecordMixin(Base):
     #     arguments = [self] + list(args)
     #     return q(obj_session.expunge, self.schema, args=arguments, kwargs=kwargs)
 
-    def commit(self):
+    def commit(self) -> None:
         """Commit the session associated to this class."""
         session = object_session(self)
         if session is not None:
             session.commit()
 
-    def rollback(self):
+    def rollback(self) -> None:
         """Rollback the session associated to this class."""
         session = object_session(self)
         if session is not None:
-            return session.rollback()
-
+            session.rollback()
 
     # def is_modified(self, *args, **kwargs):
     #     obj_session = object_session(self)
     #     arguments = [self] + list(args)
     #     return q(obj_session.is_modified, self.schema, args=arguments, kwargs=kwargs)
-
 
     def add(self, commit=False):
         """Add this instance to the database."""
@@ -181,9 +179,8 @@ class ActiveRecordMixin(Base):
         """Returns the last instance from the database."""
         return cls.session().execute(cls.select().order_by(cls.id.desc()).limit(1)).scalars().first()
 
-
     @classmethod
-    def all(cls, query: sa.Select | None = None)-> list[Self]:
+    def all(cls, query: sa.Select | None = None) -> list[Self]:
         """Returns a list of all instances of this class in the database.
 
         This is the equivalent to:
@@ -195,7 +192,6 @@ class ActiveRecordMixin(Base):
 
 
 class PKMixin(MappedAsDataclass, ActiveRecordMixin):
-
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid(), init=False)
 
     @classmethod
@@ -204,11 +200,9 @@ class PKMixin(MappedAsDataclass, ActiveRecordMixin):
         return cls.get(id)
 
 
-
 class UpdateMixin(MappedAsDataclass, ActiveRecordMixin):
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now() ,init=False)
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now(), init=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), init=False)
-
 
     @classmethod
     def last_modified(cls) -> Self | None:
@@ -216,7 +210,7 @@ class UpdateMixin(MappedAsDataclass, ActiveRecordMixin):
         return cls.session().execute(cls.select().order_by(cls.updated_at.desc()).limit(1)).scalars().first()
 
     @classmethod
-    def last_created(cls) -> Self | None :
+    def last_created(cls) -> Self | None:
         """Returns the last modified instance from the database."""
         return cls.session().execute(cls.select().order_by(cls.created_at.desc()).limit(1)).scalars().first()
 
@@ -224,7 +218,6 @@ class UpdateMixin(MappedAsDataclass, ActiveRecordMixin):
     def first_created(cls) -> Self | None:
         """Returns the last modified instance from the database."""
         return cls.session().execute(cls.select().order_by(cls.created_at).limit(1)).scalars().first()
-
 
     @classmethod
     def get_since(cls, date, query=None) -> list[Self]:
