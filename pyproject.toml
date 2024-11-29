@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "activealchemy"
+version = "0.1.0"
+description = ""
+authors = ["ant31 <2t.antoine@gmail.com>"]
+license = "Apache V2"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+sqlalchemy = "^2.0.36"
+pydantic = "^2.10.2"
+
+
+[tool.poetry.group.dev.dependencies]
+pyreadline = "*"
+requests = "*"
+pyright = "*"
+black = "*"
+ipython = "*"
+pylint = "*"
+pyre-check = "*"
+types-requests = "*"
+isort = "*"
+pytest = "*"
+coverage = "*"
+pytest-cov = "*"
+bumpversion = "*"
+pytest-ordering = "*"
+ruff = "*"
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.isort]
+atomic = true
+profile = "black"
+line_length = 120
+skip_gitignore = true
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
