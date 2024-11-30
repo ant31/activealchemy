@@ -1,37 +1,33 @@
 import uuid
 
-from activealchemy.activerecord import ActiveRecordMixin, PKMixin, UpdateMixin
-from activealchemy.engine import ActiveEngine
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from activealchemy.activerecord import ActiveRecord, PKMixin, UpdateMixin
 
+from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, MappedAsDataclass
 
-class BaseMixin(DeclarativeBase, ActiveRecordMixin):
-    """Base mixin class for all models."""
+class DemoBase(MappedAsDataclass, DeclarativeBase, ActiveRecord):
+    pass
 
-    __active_engine__: ActiveEngine
-
-
-class Resident(BaseMixin, PKMixin, UpdateMixin):
+class Resident(DemoBase, PKMixin, UpdateMixin):
     """User model."""
 
     __tablename__ = "resident"
 
-    name: Mapped[str] = mapped_column(init=True)
-    email: Mapped[str] = mapped_column(default=None)
+    name: Mapped[str] = mapped_column(init=True, default=None)
+    email: Mapped[str] = mapped_column(default=None, init=True)
 
 
-class City(BaseMixin, PKMixin, UpdateMixin):
+class City(DemoBase, PKMixin, UpdateMixin):
     """City model."""
 
     __tablename__ = "city"
 
-    name: Mapped[str] = mapped_column(init=True)
-    code: Mapped[str] = mapped_column(init=True)
+    name: Mapped[str] = mapped_column(init=True, default=None)
+    code: Mapped[str] = mapped_column(init=True, default=None)
     country_id: Mapped[uuid.UUID] = mapped_column(init=False)
     # country: Mapped["Country"] = relationship("Country", back_populates="city", init=False)
 
 
-class Country(BaseMixin, PKMixin, UpdateMixin):
+class Country(DemoBase, PKMixin, UpdateMixin):
     """Country model."""
 
     __tablename__ = "country"

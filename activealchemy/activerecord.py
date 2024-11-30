@@ -7,25 +7,23 @@ from pydantic_core import to_jsonable_python
 from sqlalchemy import func
 from sqlalchemy.orm import (
     ColumnProperty,
-    DeclarativeBase,
     Mapped,
     MappedAsDataclass,
     mapped_column,
     object_session,
 )
 
+
 from activealchemy.engine import ActiveEngine
 
 # Base imported from orm-classes
 
 
-class Base(DeclarativeBase):
-    pass
 
 
-class ActiveRecordMixin:
+
+class ActiveRecord:
     """Models mixin class"""
-
     __tablename__ = "orm_mixin"
     __schema__ = "public"
     __active_engine__: ActiveEngine
@@ -88,6 +86,22 @@ class ActiveRecordMixin:
             classname = ":".join([self.__class__.__module__, self.__class__.__name__])
             data.update({"__metadata__": {"model": classname, "table": self.__tablename__, "schema": self.__schema__}})
         return data
+
+    @classmethod
+    def load(cls, *args, **kwargs) -> Self:
+        """Load an instance from a dict."""
+        obj = cls()
+        if hasattr(cls, "__mapper__"):
+            col_prop_names = [p.key for p in cls.__mapper__.iterate_properties if isinstance(p, ColumnProperty)]
+            data = dict((name, getattr(cls, name)) for name in col_prop_names)
+        else:
+            raise ValueError("Cannot load a model without a mapper")
+        if len(args) > 0 and isinstance(args[0], dict):
+            kwargs.update(args[0])
+        for key, value in kwargs.items():
+            if key in data:
+                setattr(obj, key, value)
+        return obj
 
     def flush(self) -> None:
         """Flush all changes to this object to the database."""
@@ -188,7 +202,8 @@ class ActiveRecordMixin:
         return cls.session().execute(query).scalars().all()
 
 
-class PKMixin(MappedAsDataclass, ActiveRecordMixin):
+
+class PKMixin(MappedAsDataclass, ActiveRecord):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid(), init=False)
 
     @classmethod
@@ -197,7 +212,7 @@ class PKMixin(MappedAsDataclass, ActiveRecordMixin):
         return cls.get(id)
 
 
-class UpdateMixin(MappedAsDataclass, ActiveRecordMixin):
+class UpdateMixin(MappedAsDataclass, ActiveRecord):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now(), init=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), init=False)
 
