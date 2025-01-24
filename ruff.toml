@@ -482,3 +482,5 @@ exclude = [
 "connyex/exporter/*.py"]
 [analyze]
 detect-string-imports = true
+[lint.isort]
+known-first-party = ["activealchemy"]
