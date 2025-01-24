@@ -1,11 +1,13 @@
 import uuid
 
+from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
+
 from activealchemy.activerecord import ActiveRecord, PKMixin, UpdateMixin
 
-from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, MappedAsDataclass
 
 class DemoBase(MappedAsDataclass, DeclarativeBase, ActiveRecord):
     pass
+
 
 class Resident(DemoBase, PKMixin, UpdateMixin):
     """User model."""

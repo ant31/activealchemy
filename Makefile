@@ -9,7 +9,7 @@ GOTOOLS =
 GOTOOLS += $(MIGRATE_BINARY)
 CONTAINERIZE_BUILD ?= false
 
-DATABASE_NAME ?= activealchemy-$(APP_ENV)
+DATABASE_NAME ?= pythonapp-$(APP_ENV)
 
 DATABASE_USER ?= activealchemy
 DATABASE_PASSWORD ?= activealchemy
