@@ -33,14 +33,17 @@ logger = logging.getLogger(__name__)
 class Select[T: "ActiveRecord"](sa.Select):
     inherit_cache: bool = True
 
-    def __init__(self, cls: T, *args, **kwargs):
+    def __init__(self, cls: T, session=None, *args, **kwargs):
+        self.session = session
         super().__init__(cls, *args, **kwargs)
         self.cls = cls
 
     def scalars(self, session: sa.orm.Session | None = None) -> ScalarResult[T]:
         try:
-            with self.cls.new_session(session) as s:
-                return s.execute(self).scalars()
+            if not session:
+                session = self.session
+            session = self.cls.new_session(session)
+            return session.execute(self).scalars()
         except SQLAlchemyError as e:
             raise e
 
@@ -115,12 +118,12 @@ class ActiveRecord:
         return cls.session_factory()()
 
     @classmethod
-    def select(cls, *args, **kwargs) -> Select[Self]:
+    def select(cls, session: sa.orm.Session | None = None,  *args, **kwargs) -> Select[Self]:
         """Return the SQLAlchemy query object associated to this class.
 
         It is equivalent to call session.query(MyClass).
         """
-        return Select[Self](cls, *args, **kwargs)
+        return Select[Self](cls, session=session, *args, **kwargs)
 
     def dump_model(self, with_meta: bool = True) -> dict[str, Any]:
         """Return a dict representation of the instance."""
@@ -291,13 +294,13 @@ class ActiveRecord:
                 s.commit()
         return res.all()
 
-    def save(self, commit=False):
+    def save(self, commit=False, session: sa.orm.Session | None = None) -> Self:
         """Add this instance to the database."""
-        return self.add(self, commit, self.obj_session())
+        return self.add(self, commit, session)
 
-    def add_me(self, commit=False):
+    def add_me(self, commit=False, session: sa.orm.Session | None = None) -> Self:
         """Add this instance to the database."""
-        return self.add(self, commit, self.obj_session())
+        return self.add(self, commit, session)
 
     # query methods
     @classmethod
@@ -308,7 +311,7 @@ class ActiveRecord:
         session.query(MyClass).filter_by(...).first()
         """
         with cls.new_session(session) as s:
-            return s.execute(cls.select().where(*args, **kwargs).limit(1)).scalars().first()
+            return s.execute(cls.select(session=session).where(*args, **kwargs).limit(1)).scalars().first()
 
     @classmethod
     def get(cls, *args, session: sa.orm.Session | None = None, **kwargs) -> Self | None:
@@ -327,7 +330,7 @@ class ActiveRecord:
         if col is None:
             col = cls.id
         with cls.new_session(session) as s:
-            return s.execute(cls.select().order_by(col).limit(1)).scalars().first()
+            return s.execute(cls.select(session=session).order_by(col).limit(1)).scalars().first()
 
     @classmethod
     def last(cls, col: Mapped | None = None, session: sa.orm.Session | None = None) -> Self | None:
@@ -347,7 +350,7 @@ class ActiveRecord:
         session.query(MyClass).all() inSQLAlchemy
         """
         if query is None:
-            query = cls.select()
+            query = cls.select(session=session)
         if limit is not None:
             query = query.limit(limit)
 
