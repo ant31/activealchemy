@@ -42,7 +42,7 @@ class Select[T: "ActiveRecord"](sa.Select):
         try:
             if not session:
                 session = self.session
-            session = self.new_session(session)
+            session = self.cls.new_session(session)
             return session.execute(self).scalars()
         except SQLAlchemyError as e:
             raise e
