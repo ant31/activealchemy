@@ -395,7 +395,7 @@ class PKMixin(MappedAsDataclass, ActiveRecord):
     @classmethod
     def find(cls, pk_uuid: uuid.UUID, session: sa.orm.Session | None = None) -> Self | None:
         """Return the instance with the given id."""
-        return cls.get(session, pk_uuid)
+        return cls.get(pk_uuid, session=session)
 
 
 # pylint: disable=not-callable
