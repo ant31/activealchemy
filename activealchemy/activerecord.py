@@ -42,7 +42,7 @@ class Select[T: "ActiveRecord"](sa.Select):
         try:
             if not session:
                 session = self.session
-            session = self.cls.new_session(session)
+            session = self.new_session(session)
             return session.execute(self).scalars()
         except SQLAlchemyError as e:
             raise e
@@ -115,7 +115,8 @@ class ActiveRecord:
         """Create a new session associated to this class."""
         if session is not None:
             return session
-        return cls.session_factory()()
+        cls.__session__ = cls.session_factory()(expire_on_commit=True)
+        return cls.__session__
 
     @classmethod
     def select(cls, session: sa.orm.Session | None = None,  *args, **kwargs) -> Select[Self]:
@@ -310,8 +311,8 @@ class ActiveRecord:
         This is equivalent to:
         session.query(MyClass).filter_by(...).first()
         """
-        with cls.new_session(session) as s:
-            return s.execute(cls.select(session=session).where(*args, **kwargs).limit(1)).scalars().first()
+        session = self.new_session(session)
+        return session.execute(cls.select(session=session).where(*args, **kwargs).limit(1)).scalars().first()
 
     @classmethod
     def get(cls, *args, session: sa.orm.Session | None = None, **kwargs) -> Self | None:
@@ -321,24 +322,24 @@ class ActiveRecord:
         or None if not found. This is equivalent to:
         session.query(MyClass).get(...)
         """
-        with cls.new_session(session) as s:
-            return s.get(cls, *args, **kwargs)
+        session = cls.new_session(session)
+        return session.get(cls, *args, **kwargs)
 
     @classmethod
     def first(cls, col: Mapped | None = None, session: sa.orm.Session | None = None) -> Self | None:
         """Returns the first instance of this class."""
         if col is None:
             col = cls.id
-        with cls.new_session(session) as s:
-            return s.execute(cls.select(session=session).order_by(col).limit(1)).scalars().first()
+        session = cls.new_session(session)
+        return session.execute(cls.select(session=session).order_by(col).limit(1)).scalars().first()
 
     @classmethod
     def last(cls, col: Mapped | None = None, session: sa.orm.Session | None = None) -> Self | None:
         """Returns the last instance from the database."""
         if col is None:
             col = cls.id
-        with cls.new_session(session) as s:
-            return s.execute(cls.select().order_by(col.desc()).limit(1)).scalars().first()
+        session = cls.new_session(session)
+        return session.execute(cls.select().order_by(col.desc()).limit(1)).scalars().first()
 
     @classmethod
     def all(
@@ -354,8 +355,8 @@ class ActiveRecord:
         if limit is not None:
             query = query.limit(limit)
 
-        with cls.new_session(session) as s:
-            return s.execute(query).scalars().all()
+        session = cls.new_session(session)
+        return session.execute(query).scalars().all()
 
     @classmethod
     def where(cls, *args, session: sa.orm.Session | None = None, **kwargs) -> Select[Self]:
@@ -369,8 +370,8 @@ class ActiveRecord:
     @classmethod
     def exec(cls, query: Select[Self], session: sa.orm.Session | None = None) -> ScalarResult[Self]:
         """Execute the given query."""
-        with cls.new_session(session) as s:
-            return s.session().execute(query).scalars()
+        session = cls.new_session(session)
+        return session.session().execute(query).scalars()
 
     @classmethod
     def count(cls, q: Select[Self] | None = None, session: sa.orm.Session | None = None) -> int:
@@ -406,20 +407,20 @@ class UpdateMixin(MappedAsDataclass, ActiveRecord):
     @classmethod
     def last_modified(cls, session: sa.orm.Session | None = None) -> Self | None:
         """Returns the last modified instance from the database."""
-        with cls.new_session(session) as s:
-            return s.execute(cls.select().order_by(cls.updated_at.desc()).limit(1)).scalars().first()
+        session = cls.new_session(session)
+        return session.execute(cls.select().order_by(cls.updated_at.desc()).limit(1)).scalars().first()
 
     @classmethod
     def last_created(cls, session: sa.orm.Session | None = None) -> Self | None:
         """Returns the last modified instance from the database."""
-        with cls.new_session(session) as s:
-            return s.execute(cls.select().order_by(cls.created_at.desc()).limit(1)).scalars().first()
+        session = cls.new_session(session)
+        return session.execute(cls.select().order_by(cls.created_at.desc()).limit(1)).scalars().first()
 
     @classmethod
     def first_created(cls, session: sa.orm.Session | None = None) -> Self | None:
         """Returns the last modified instance from the database."""
-        with cls.new_session(session) as s:
-            return s.execute(cls.select().order_by(cls.created_at).limit(1)).scalars().first()
+        session = cls.new_session(session)
+        return session.execute(cls.select().order_by(cls.created_at).limit(1)).scalars().first()
 
     @classmethod
     def get_since(cls, date, query=None, session: sa.orm.Session | None = None) -> Sequence[Self]:
