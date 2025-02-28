@@ -3,7 +3,7 @@ from multiprocessing.util import register_after_fork
 from typing import Any
 
 from sqlalchemy import Engine, create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
 from activealchemy.config import PostgreSQLConfigSchema
@@ -24,7 +24,7 @@ class ActiveEngine:
     def __init__(self, config: PostgreSQLConfigSchema, **kwargs: Any):
         self.config = config
         self.engine_kwargs = self._prep_engine_arguments(kwargs)
-        self.sessions: dict[str, dict[str, scoped_session]] = {}
+        self.sessions: dict[str, dict[str, sessionmaker]] = {}
 
         self.engines: dict[str, dict[str, Engine]] = {}
         self.after_fork = ForkEngines(self.dispose_engines)
@@ -50,7 +50,8 @@ class ActiveEngine:
             kwargs["pool_pre_ping"] = True
         if "echo" not in kwargs:
             kwargs["echo"] = self.config.debug
-
+        if self.config.kwargs:
+            kwargs.update(self.config.kwargs)
         return kwargs
 
     def engine(self, schema: str | None = None) -> Engine:
@@ -69,7 +70,7 @@ class ActiveEngine:
             register_after_fork(self.after_fork, self.after_fork)
             return engine
 
-    def session(self, schema: str | None = None) -> tuple[Engine, scoped_session]:
+    def session(self, schema: str | None = None) -> tuple[Engine, sessionmaker]:
         """Creates/returns a session connected to the schema"""
         if schema is None:
             schema = self.config.default_schema
@@ -77,5 +78,5 @@ class ActiveEngine:
         if self.config.db not in self.sessions:
             self.sessions[self.config.db] = {}
         if schema not in self.sessions[self.config.db]:
-            self.sessions[self.config.db][schema] = scoped_session(sessionmaker(bind=engine))
+            self.sessions[self.config.db][schema] = sessionmaker(bind=engine)
         return engine, self.sessions[self.config.db][schema]

@@ -27,6 +27,7 @@ class PostgreSQLConfigSchema(BaseConfig):
     debug: bool = Field(default=False)
     default_schema: str = Field(default="public")
     mode: Literal["sync", "async"] = Field(default="sync")
+    kwargs: dict[str, Any] = Field(default_factory=dict)
 
     def uri(self) -> str:
         host = f"postgresql+{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"

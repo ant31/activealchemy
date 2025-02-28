@@ -1,18 +1,18 @@
-[tool.poetry]
+[project]
 name = "activealchemy"
 version = "0.1.0"
 description = ""
-authors = ["ant31 <2t.antoine@gmail.com>"]
-license = "Apache V2"
+authors = [{email="2t.antoine@gmail.com", name="ant31"}]
+license = {text="Apache-2.0"}
 readme = "README.md"
 
-[tool.poetry.dependencies]
-python = "^3.12"
-sqlalchemy = "^2.0.36"
-pydantic = "^2.10.2"
-psycopg = "^3.2.3"
-psycopg2 = "^2.9.10"
-
+requires-python = ">=3.11"
+dependencies = [
+             "sqlalchemy (>=2)",
+             "pydantic (>=2)",
+             "psycopg (>=3)",
+             "psycopg2 (>=2)"
+             ]
 
 [tool.poetry.group.dev.dependencies]
 pyreadline = "*"
@@ -30,7 +30,7 @@ pytest-cov = "*"
 bumpversion = "*"
 pytest-ordering = "*"
 ruff = "*"
-pylint-pydantic = "^0.3.2"
+pylint-pydantic = "*"
 
 [tool.black]
 line-length = 120
@@ -43,6 +43,7 @@ profile = "black"
 line_length = 120
 skip_gitignore = true
 
+
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
