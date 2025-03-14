@@ -126,11 +126,11 @@ class ActiveRecord:
         """
         return Select[Self](cls, session=session, *args, **kwargs)
 
-    def dump_model(self, with_meta: bool = True) -> dict[str, Any]:
+    def dump_model(self, with_meta: bool = True, fields: set[str] | None = None) -> dict[str, Any]:
         """Return a dict representation of the instance."""
-        return to_jsonable_python(self.to_dict(with_meta))
+        return to_jsonable_python(self.to_dict(with_meta, fields))
 
-    def to_dict(self, with_meta: bool = True) -> dict[str, Any]:
+    def to_dict(self, with_meta: bool = True, fields: set[str] | None = None) -> dict[str, Any]:
         """Generate a JSON-style nested dict structure from an object."""
         if hasattr(self, "__mapper__"):
             col_prop_names = [p.key for p in self.__mapper__.iterate_properties if isinstance(p, ColumnProperty)]
@@ -140,6 +140,8 @@ class ActiveRecord:
         if with_meta:
             classname = ":".join([self.__class__.__module__, self.__class__.__name__])
             data.update({"__metadata__": {"model": classname, "table": self.__tablename__, "schema": self.__schema__}})
+        if fields is not None:
+            data = {k: v for k, v in data.items() if k in fields}
         return data
 
     @classmethod
@@ -174,8 +176,8 @@ class ActiveRecord:
         This is equivalent to:
         session.delete(myObj)
         """
-        with cls.new_session(session) as s:
-            s.delete(obj)
+        s = cls.new_session(session)
+        s.delete(obj)
 
     def delete_me(self) -> None:
         """Mark the instance as deleted.
@@ -204,10 +206,10 @@ class ActiveRecord:
         """Query the database to refresh this instance's attributes."""
         self.refresh(self)
 
-    def obj_session(self) -> sa.orm.Session:
+    def obj_session(self, session: sa.orm.Session | None = None) -> sa.orm.Session:
         session = object_session(self)
         if session is None:
-            session = self.new_session()
+            session = self.new_session(session)
             session.merge(self)
             session.refresh(self)
         return session
@@ -282,18 +284,16 @@ class ActiveRecord:
 
     @classmethod
     def add_all(
-        cls, objs: list[Self], commit=False, skip_duplicate=True, session: sa.orm.Session | None = None
+            cls, objs: list[Self], commit=False, skip_duplicate=True, fields: set[str] | None = None, session: sa.orm.Session | None = None
     ) -> Sequence[Self]:
         conflict = "nothing" if skip_duplicate else None
-        insert = cls.get_insert(on_conflict=conflict)
-        values = [o.dump_model(with_meta=False) for o in objs]
-        insert.values(values)
-        insert.returning(cls)
-        with cls.new_session(session) as s:
-            res = s.scalars(insert, execution_options={"populate_existing": True})
-            if commit:
-                s.commit()
-        return res.all()
+        values = [o.dump_model(with_meta=False, fields=fields) for o in objs]
+        insert = cls.get_insert(on_conflict=conflict).values(values).returning(cls)
+        s = cls.new_session(session)
+        res = s.scalars(insert, execution_options={"populate_existing": True}).all()
+        if commit:
+            s.commit()
+        return res
 
     def save(self, commit=False, session: sa.orm.Session | None = None) -> Self:
         """Add this instance to the database."""
@@ -381,11 +381,11 @@ class ActiveRecord:
         q = q.offset(0)
         query = q.with_only_columns(func.count()).select_from(cls).order_by(None)  # pylint: disable=not-callable
 
-        with cls.new_session(session) as s:
-            res = s.execute(query).scalars().first()
-            if res is None:
-                return 0
-            return res
+        s = cls.new_session(session)
+        res = s.execute(query).scalars().first()
+        if res is None:
+            return 0
+        return res
 
 
 class PKMixin(MappedAsDataclass, ActiveRecord):
