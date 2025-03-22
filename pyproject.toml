@@ -10,8 +10,9 @@ requires-python = ">=3.11"
 dependencies = [
              "sqlalchemy (>=2)",
              "pydantic (>=2)",
-             "psycopg (>=3)",
-             "psycopg2 (>=2)"
+             # "psycopg (>=3)",
+             "psycopg2 (>=2)",
+             "asyncpg"
              ]
 
 [tool.poetry.group.dev.dependencies]
@@ -31,7 +32,7 @@ bumpversion = "*"
 pytest-ordering = "*"
 ruff = "*"
 pylint-pydantic = "*"
-
+pytest-asyncio = "*"
 [tool.black]
 line-length = 120
 target-version = ['py311']
@@ -47,3 +48,7 @@ skip_gitignore = true
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope="function"
