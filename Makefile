@@ -113,7 +113,8 @@ clean-test:
 	rm -f report.xml
 
 test:
-	poetry run py.test --cov=$(package) --verbose tests --cov-report=html --cov-report=term --cov-report xml:coverage.xml --cov-report=term-missing --junitxml=report.xml
+	poetry run py.test -m asyncio --cov=$(package) --verbose tests --cov-report=html --cov-report=term --cov-report xml:coverage.xml --cov-report=term-missing --junitxml=report.xml -o asyncio_default_fixture_loop_scope=function -o asynio_mode=auto
+	poetry run py.test -m "not asyncio" --cov=$(package) --verbose tests --cov-report=html --cov-report=term --cov-report xml:coverage.xml --cov-report=term-missing --junitxml=report.xml --cov-append -o asyncio_default_fixture_loop_scope=function -o asynio_mode=auto
 
 coverage:
 	poetry run coverage run --source $(package) setup.py test

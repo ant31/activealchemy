@@ -1,7 +1,3 @@
-"""
-Backward compatibility module that re-exports from sync/activerecord.py
-"""
-
 from activealchemy.sync.activerecord import (
     ActiveRecord,
     Base,
@@ -10,8 +6,10 @@ from activealchemy.sync.activerecord import (
     Select,
     UpdateMixin,
 )
+from activealchemy.sync.engine import ActiveEngine
 
 __all__ = [
+    "ActiveEngine",
     "ActiveRecord",
     "Base",
     "PKMixin",

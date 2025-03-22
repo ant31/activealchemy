@@ -30,6 +30,11 @@ class PostgreSQLConfigSchema(BaseConfig):
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
     def uri(self) -> str:
+        if self.mode == "sync":
+            return self.sync_uri()
+        return self.async_uri()
+
+    def sync_uri(self) -> str:
         host = f"postgresql+{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
         params = "&".join([f"{k}={v}" for k, v in self.params.items()])
         if params:
