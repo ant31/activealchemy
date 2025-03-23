@@ -1,5 +1,5 @@
 src = [
-    "connyex"
+    "activealchemy"
 
 ]
 
@@ -474,12 +474,7 @@ ignore = [
 
 fixable = ["ALL"]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-exclude = [
-"connyex/ml/rental.py",
-"connyex/ml/openai/*.py",
-"connyex/ml/comprehend/waiter.py",
-"connyex/db/*.py",
-"connyex/exporter/*.py"]
+exclude = []
 [analyze]
 detect-string-imports = true
 [lint.isort]

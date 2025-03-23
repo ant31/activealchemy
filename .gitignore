@@ -1,6 +1,7 @@
+
 # Byte-compiled / optimized / DLL files
 cache/
-
+.aider*
 .cache/
 data-export*
 package.json
