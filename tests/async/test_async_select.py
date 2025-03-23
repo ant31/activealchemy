@@ -2,13 +2,14 @@
 Unit tests for the async Select class
 """
 from contextlib import suppress
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import Column, String
-from sqlalchemy.exc import SQLAlchemyError
 
-from activealchemy.aio import ActiveEngine, ActiveRecord, Base
+from activealchemy.aio import Base
 from activealchemy.aio.activerecord import Select
+
 
 class TestModel(Base):
     """Test model for select tests"""

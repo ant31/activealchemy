@@ -56,7 +56,6 @@ class ActiveRecord(BaseActiveRecord[ActiveEngine, Session, Select, ScalarResult]
     __table__: ClassVar[FromClause]
     __mapper__: ClassVar[Mapper[Any]]
 
-
     @classmethod
     def session_factory(cls) -> sessionmaker:
         """Return the session associated to this class."""
@@ -70,6 +69,16 @@ class ActiveRecord(BaseActiveRecord[ActiveEngine, Session, Select, ScalarResult]
             return session
         cls.__session__ = cls.session_factory()(expire_on_commit=True)
         return cls.__session__
+
+    @classmethod
+    def new_obj_session(cls, obj: Self, session: Session | None = None) -> tuple[Session, Self]:
+        """Create a new session associated to this object."""
+        if not session:
+            session = obj.obj_session()
+        session = cls.new_session(session)
+        if obj not in session:
+            obj = session.merge(obj)
+        return session, obj
 
     @classmethod
     def dispose_engines(cls):
@@ -87,59 +96,36 @@ class ActiveRecord(BaseActiveRecord[ActiveEngine, Session, Select, ScalarResult]
         """Flush all changes to the database."""
         session.flush(objs)
 
-    def flush_me(self) -> None:
-        """Flush all changes to this object to the database."""
-        session = self.obj_session()
-        session.flush([self])
-
     @classmethod
     def delete(cls, obj: Self, session: Session | None = None) -> None:
         """Delete the instance from the database."""
-        s = cls.new_session(session)
+        s, obj = cls.new_obj_session(obj, session)
         s.delete(obj)
 
-    def delete_me(self) -> None:
-        """Mark the instance as deleted."""
-        self.delete(self)
-
     @classmethod
-    def expire(cls, obj: Self) -> None:
+    def expire(cls, obj: Self, session: Session | None = None) -> Self:
         """Expire the instance, forcing a refresh when it is next accessed."""
-        session = obj.obj_session()
+        session, obj = cls.new_obj_session(obj, session)
         session.expire(obj)
-
-    def expire_me(self) -> None:
-        """Expire the instance, forcing a refresh when it is next accessed."""
-        self.expire(self)
+        return obj
 
     @classmethod
-    def refresh(cls, obj: Self) -> None:
+    def refresh(cls, obj: Self, session: Session | None = None) -> Self:
         """Query the database to refresh the obj's attributes."""
-        session = obj.obj_session()
+        session, obj = cls.new_obj_session(obj, session)
         session.refresh(obj)
+        return obj
 
-    def refresh_me(self) -> None:
-        """Query the database to refresh this instance's attributes."""
-        self.refresh(self)
-
-    def obj_session(self, session: Session | None = None) -> Session:
+    def obj_session(self) -> Session | None:
         """Get the session associated with this object."""
-        session = object_session(self)
-        if session is None:
-            session = self.new_session(session)
-            session.add(self)
-            session.refresh(self)
-        return session
+        return object_session(self)
 
     @classmethod
-    def expunge(cls, obj: Self) -> None:
+    def expunge(cls, obj: Self, session: Session | None = None) -> Self:
         """Remove this instance from its session."""
-        session = obj.obj_session()
+        session, obj = cls.new_obj_session(obj, session)
         session.expunge(obj)
-
-    def expunge_me(self):
-        """Remove this instance from its session."""
-        self.expunge(self)
+        return obj
 
     @classmethod
     def commit(cls, obj: Self | None = None, session: Session | None = None) -> None:
@@ -154,10 +140,6 @@ class ActiveRecord(BaseActiveRecord[ActiveEngine, Session, Select, ScalarResult]
             raise ValueError("No session associated to this object")
         session.commit()
 
-    def commit_me(self) -> None:
-        """Commit the session associated to this object."""
-        self.commit(self)
-
     @classmethod
     def rollback(cls, obj: Self | None = None, session: Session | None = None) -> None:
         """Rollback the session associated to this class."""
@@ -170,13 +152,12 @@ class ActiveRecord(BaseActiveRecord[ActiveEngine, Session, Select, ScalarResult]
             raise ValueError("No session associated to this object")
         session.rollback()
 
-    def rollback_me(self) -> None:
-        """Rollback the session associated to this object"""
-        self.rollback(self)
-
-    def is_modified(self) -> bool:
+    def is_modified(self, session: Session | None = None) -> bool:
         """Check if this object has been modified."""
-        session = self.obj_session()
+        if session is None:
+            session = self.obj_session()
+        if session is None:
+            raise ValueError("No session associated to this object")
         return session.is_modified(self)
 
     @classmethod
@@ -213,10 +194,6 @@ class ActiveRecord(BaseActiveRecord[ActiveEngine, Session, Select, ScalarResult]
         return res
 
     def save(self, commit=False, session: Session | None = None) -> Self:
-        """Add this instance to the database."""
-        return self.add(self, commit, session)
-
-    def add_me(self, commit=False, session: Session | None = None) -> Self:
         """Add this instance to the database."""
         return self.add(self, commit, session)
 
