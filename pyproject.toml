@@ -1,6 +1,6 @@
 [project]
 name = "activealchemy"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = [{email="2t.antoine@gmail.com", name="ant31"}]
 license = {text="Apache-2.0"}
@@ -28,7 +28,6 @@ isort = "*"
 pytest = "*"
 coverage = "*"
 pytest-cov = "*"
-bumpversion = "*"
 pytest-ordering = "*"
 ruff = "*"
 pylint-pydantic = "*"

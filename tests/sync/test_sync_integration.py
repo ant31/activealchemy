@@ -25,7 +25,7 @@ def test_integration_create_retrieve_update_delete(clean_tables, unique_id):
         assert retrieved_user.email == f"int_{unique_id}@example.com"
 
         c1 = Country(name="country1", code="c1").save(commit=True, session=session)
-        c1.refresh_me()
+        Country.refresh(c1, session=session)
         assert c1.id != uuid.UUID("00000000-0000-0000-0000-000000000000")
         cities = []
         # Create items for the user

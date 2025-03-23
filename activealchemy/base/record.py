@@ -7,8 +7,7 @@ import sqlalchemy.dialects.postgresql as sa_pg
 from pydantic import BaseModel, ConfigDict
 from pydantic.fields import FieldInfo
 from pydantic_core import to_jsonable_python
-import sqlalchemy as sa
-from sqlalchemy import FromClause, ScalarResult, func
+from sqlalchemy import FromClause, func
 from sqlalchemy.orm import (
     ColumnProperty,
     Mapped,

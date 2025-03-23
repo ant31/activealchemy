@@ -8,14 +8,12 @@ import sqlalchemy.dialects.postgresql as sa_pg
 from pydantic_core import to_jsonable_python
 from sqlalchemy import FromClause, ScalarResult, func
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_object_session, async_sessionmaker
 from sqlalchemy.orm import (
     ColumnProperty,
     DeclarativeBase,
     Mapped,
     Mapper,
-    object_session,
-    sessionmaker,
 )
 
 from activealchemy.aio.engine import ActiveEngine
@@ -164,59 +162,46 @@ class ActiveRecord(AsyncAttrs, BaseActiveRecord[ActiveEngine, AsyncSession, Sele
         """Flush all changes to the database."""
         await session.flush(objs)
 
-    async def flush_me(self) -> None:
-        """Flush all changes to this object to the database."""
-        session = await self.obj_session()
-        await session.flush([self])
+    @classmethod
+    async def new_obj_session(cls, obj: Self, session: AsyncSession | None = None) -> tuple[AsyncSession, Self]:
+        """Create a new session associated to this object."""
+        if not session:
+            session = obj.obj_session()
+        session = await cls.new_session(session)
+        if obj not in session:
+            obj = await session.merge(obj)
+        return session, obj
 
     @classmethod
     async def delete(cls, obj: Self, session: AsyncSession | None = None) -> None:
         """Delete the instance from the database."""
-        s = await cls.new_session(session)
-        await s.delete(obj)
-
-    async def delete_me(self) -> None:
-        """Mark the instance as deleted."""
-        await self.delete(self)
+        session, obj = await cls.new_obj_session(obj, session)
+        await session.delete(obj)
 
     @classmethod
-    async def expire(cls, obj: Self) -> None:
+    async def expire(cls, obj: Self, session: AsyncSession | None = None) -> Self:
         """Expire the instance, forcing a refresh when it is next accessed."""
-        session = await obj.obj_session()
+        session, obj = await cls.new_obj_session(obj, session)
         session.expire(obj)
-
-    async def expire_me(self) -> None:
-        """Expire the instance, forcing a refresh when it is next accessed."""
-        await self.expire(self)
+        return obj
 
     @classmethod
-    async def refresh(cls, obj: Self) -> None:
+    async def refresh(cls, obj: Self, session: AsyncSession | None = None) -> Self:
         """Query the database to refresh the obj's attributes."""
-        session = await obj.obj_session()
+        session, obj = await cls.new_obj_session(obj, session)
         await session.refresh(obj)
+        return obj
 
-    async def refresh_me(self) -> None:
-        """Query the database to refresh this instance's attributes."""
-        await self.refresh(self)
-
-    async def obj_session(self, session: AsyncSession | None = None) -> AsyncSession:
+    def obj_session(self) -> AsyncSession | None:
         """Get the session associated with this object."""
-        session = object_session(self)
-        if session is None:
-            session = await self.new_session(session)
-            session.add(self)
-            await session.refresh(self)
-        return session
+        return async_object_session(self)
 
     @classmethod
-    async def expunge(cls, obj: Self) -> None:
+    async def expunge(cls, obj: Self, session: AsyncSession | None = None) -> Self:
         """Remove this instance from its session."""
-        session = await obj.obj_session()
+        session, obj = await cls.new_obj_session(obj, session)
         session.expunge(obj)
-
-    async def expunge_me(self):
-        """Remove this instance from its session."""
-        await self.expunge(self)
+        return obj
 
     @classmethod
     async def commit(cls, obj: Self | None = None, session: AsyncSession | None = None) -> None:
@@ -226,14 +211,10 @@ class ActiveRecord(AsyncAttrs, BaseActiveRecord[ActiveEngine, AsyncSession, Sele
             return
 
         if obj is not None:
-            session = await obj.obj_session()
+            session = obj.obj_session()
         if session is None:
             raise ValueError("No session associated to this object")
         await session.commit()
-
-    async def commit_me(self) -> None:
-        """Commit the session associated to this object."""
-        await self.commit(self)
 
     @classmethod
     async def rollback(cls, obj: Self | None = None, session: AsyncSession | None = None) -> None:
@@ -242,18 +223,17 @@ class ActiveRecord(AsyncAttrs, BaseActiveRecord[ActiveEngine, AsyncSession, Sele
             await session.rollback()
             return
         if obj is not None:
-            session = await obj.obj_session()
+            session = obj.obj_session()
         if session is None:
             raise ValueError("No session associated to this object")
         await session.rollback()
 
-    async def rollback_me(self) -> None:
-        """Rollback the session associated to this object"""
-        await self.rollback(self)
-
-    async def is_modified(self) -> bool:
+    async def is_modified(self, session: AsyncSession | None = None) -> bool:
         """Check if this object has been modified."""
-        session = await self.obj_session()
+        if session is None:
+            session = self.obj_session()
+        if session is None:
+            raise ValueError("No session associated to this object")
         return session.is_modified(self)
 
     @classmethod
@@ -300,10 +280,6 @@ class ActiveRecord(AsyncAttrs, BaseActiveRecord[ActiveEngine, AsyncSession, Sele
         return res
 
     async def save(self, commit=False, session: AsyncSession | None = None) -> Self:
-        """Add this instance to the database."""
-        return await self.add(self, commit, session)
-
-    async def add_me(self, commit=False, session: AsyncSession | None = None) -> Self:
         """Add this instance to the database."""
         return await self.add(self, commit, session)
 
