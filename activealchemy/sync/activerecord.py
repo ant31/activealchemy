@@ -1,14 +1,15 @@
 import logging
 import uuid
 from collections.abc import Sequence
-from typing import ClassVar, Self, TypeVar
+from typing import Any, ClassVar, Self, TypeVar
 
 import sqlalchemy as sa
-from sqlalchemy import ScalarResult, func
+from sqlalchemy import FromClause, ScalarResult, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
+    Mapper,
     Session,
     object_session,
     sessionmaker,
@@ -49,8 +50,12 @@ class Select[T: "ActiveRecord"](BaseSelect[Session, ScalarResult[T]], sa.Select)
 class ActiveRecord(BaseActiveRecord[ActiveEngine, Session, Select, ScalarResult]):
     """Sync version of the ActiveRecord mixin"""
 
-    __active_engine__: ClassVar[ActiveEngine] = None
-    __session__: ClassVar[Session] = None
+    __active_engine__: ClassVar[ActiveEngine]
+    __session__: ClassVar[Session]
+    __active_engine__: ClassVar[ActiveEngine]
+    __table__: ClassVar[FromClause]
+    __mapper__: ClassVar[Mapper[Any]]
+
 
     @classmethod
     def session_factory(cls) -> sessionmaker:
