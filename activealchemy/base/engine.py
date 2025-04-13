@@ -45,6 +45,7 @@ class ForkEngines:
                        registered with `os.register_at_fork`. This helps prevent
                        multiple registrations.
     """
+
     is_registered: bool = False
 
     def __init__(self, dispose_callback: Callable[[], Any]):
@@ -74,7 +75,7 @@ class ForkEngines:
             logger.debug("Fork handler already registered.")
             return
 
-        if hasattr(os, 'register_at_fork'):
+        if hasattr(os, "register_at_fork"):
             try:
                 # Register self.__call__ to be executed in the child process
                 # after the fork occurs.
@@ -113,10 +114,11 @@ class BaseActiveEngine(Generic[EngineType, SessionMakerType]):
     Base class for managing SQLAlchemy engines (sync or async).
     Handles configuration processing and fork handling setup.
     """
+
     config: PostgreSQLConfigSchema
     engine_kwargs: dict[str, Any]
     sessions: dict[str, dict[str, SessionMakerType]]
-    engines: dict[str, dict[str,  EngineType]]
+    engines: dict[str, dict[str, EngineType]]
     after_fork: ForkEngines
 
     def __init__(self, config: PostgreSQLConfigSchema, **kwargs: Any):
@@ -156,11 +158,9 @@ class BaseActiveEngine(Generic[EngineType, SessionMakerType]):
             logger.debug(f"Merging additional new_kwargs from config: {self.config.kwargs}")
             new_kwargs.update(self.config.kwargs)
 
-
         logger.debug(f"Preparing engine arguments from config and initial kwargs: {new_kwargs}")
         # No internal pool for Async drivers
         new_kwargs["poolclass"] = NullPool
-
 
         if "connect_args" not in new_kwargs:
             new_kwargs["connect_args"] = {"connect_timeout": self.config.connect_timeout}
@@ -172,8 +172,8 @@ class BaseActiveEngine(Generic[EngineType, SessionMakerType]):
             logger.debug(f"Setting default connect_args: {new_kwargs['connect_args']}")
         elif isinstance(new_kwargs["connect_args"], dict) and "connect_timeout" not in new_kwargs["connect_args"]:
             # Add connect_timeout if connect_args exists but lacks it
-             new_kwargs["connect_args"]["connect_timeout"] = self.config.connect_timeout
-             logger.debug(f"Adding default connect_timeout to existing connect_args: {new_kwargs['connect_args']}")
+            new_kwargs["connect_args"]["connect_timeout"] = self.config.connect_timeout
+            logger.debug(f"Adding default connect_timeout to existing connect_args: {new_kwargs['connect_args']}")
 
         # --- Echo SQL ---
         if "echo" not in kwargs:
@@ -189,15 +189,19 @@ class BaseActiveEngine(Generic[EngineType, SessionMakerType]):
                 logger.debug("Adjusting 'sslmode' to 'ssl' in config params for asyncpg.")
                 self.config.params["ssl"] = self.config.params.pop("sslmode")
 
-
             # Adjust connect_timeout -> timeout within connect_args for asyncpg driver
-            if ("connect_args" in new_kwargs and isinstance(new_kwargs["connect_args"], dict)
-                and "connect_timeout" in new_kwargs["connect_args"] and "timeout" not in new_kwargs["connect_args"]):
-                    timeout = new_kwargs["connect_args"].pop("connect_timeout")
-                    new_kwargs["connect_args"]["timeout"] = timeout
-                    logger.debug("Adjusted 'connect_timeout' to 'timeout' in connect_args for asyncpg: %s",
-                                 new_kwargs['connect_args'])
-
+            if (
+                "connect_args" in new_kwargs
+                and isinstance(new_kwargs["connect_args"], dict)
+                and "connect_timeout" in new_kwargs["connect_args"]
+                and "timeout" not in new_kwargs["connect_args"]
+            ):
+                timeout = new_kwargs["connect_args"].pop("connect_timeout")
+                new_kwargs["connect_args"]["timeout"] = timeout
+                logger.debug(
+                    "Adjusted 'connect_timeout' to 'timeout' in connect_args for asyncpg: %s",
+                    new_kwargs["connect_args"],
+                )
 
         logger.debug(f"Final prepared engine arguments: {kwargs}")
         return kwargs

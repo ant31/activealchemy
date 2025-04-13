@@ -1,4 +1,5 @@
 import logging
+from typing_extensions import deprecated
 import uuid
 from collections.abc import Sequence
 from typing import Any, ClassVar, Literal, Self, TypeVar
@@ -110,7 +111,13 @@ class ActiveRecord(AsyncAttrs, BaseActiveRecord[ActiveEngine, AsyncSession, Sele
         return session
 
     @classmethod
+    @deprecated("Use get_session instead")
     async def new_session(cls, session: AsyncSession | None = None) -> AsyncSession:
+        """Create a new session associated to this class."""
+        return await cls.get_session(session)
+
+    @classmethod
+    async def get_session(cls, session: AsyncSession | None = None) -> AsyncSession:
         """Create a new session associated to this class."""
         if session is not None:
             return session

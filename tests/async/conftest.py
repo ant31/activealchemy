@@ -1,9 +1,15 @@
 import os
 from contextlib import suppress
 
+from activealchemy.aio import Base
+from activealchemy.aio.activerecord import Select
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
+from contextlib import suppress
+
+from sqlalchemy import Column, String
 
 from activealchemy.aio import ActiveEngine as AsyncActiveEngine
 from activealchemy.aio import ActiveRecord as AsyncActiveRecord
@@ -21,7 +27,7 @@ def db_config():
         port=int(os.environ.get("TEST_DB_PORT", "5434")),
         db=os.environ.get("TEST_DB", "pythonapp-test"),
         debug=os.environ.get("TEST_DB_DEBUG", "false").lower() == "true",
-        use_internal_pool=False
+        driver="asyncpg"
     )
 
 
@@ -32,9 +38,7 @@ def db_config():
 @pytest.fixture
 def async_engine(db_config):
     """Create an async engine for tests"""
-    db_config.async_driver = "asyncpg"
-    db_config.mode = "async"
-    db_config.use_internal_pool = False
+    db_config.driver = "asyncpg"
     db_config.params = {"ssl": "disable"}
     engine = AsyncActiveEngine(db_config)
     AsyncActiveRecord.set_engine(engine)
@@ -53,6 +57,7 @@ def sync_session(sync_engine):
         yield session
     finally:
         session.rollback()
+
         session.close()
 
 @pytest_asyncio.fixture
@@ -71,3 +76,52 @@ async def aclean_tables(async_engine):
 
             # Table might not exist yet
         await session.commit()
+
+
+class TestModel(Base):
+    """Test model for select tests"""
+    __tablename__ = "test_select_models"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+
+@pytest.fixture(scope="session")
+def test_model():
+    """Provide the TestModel class for tests"""
+    return TestModel
+
+@pytest_asyncio.fixture
+async def setup_select(async_engine):
+    """Set up select tests"""
+    TestModel.set_engine(async_engine)
+
+    # Clean up
+
+    with suppress(Exception):
+        async with await TestModel.new_session() as session:
+            conn = await session.connection()
+            await conn.run_sync(TestModel.metadata.drop_all)
+
+    # Create the table
+    async with await TestModel.new_session() as session:
+        conn = await session.connection()
+        await conn.run_sync(TestModel.metadata.create_all)
+        await session.commit()
+
+    # Add test data
+    model1 = TestModel(id="1", name="Test 1")
+    model2 = TestModel(id="2", name="Test 2")
+    model3 = TestModel(id="3", name="Test 3")
+
+    async with await TestModel.new_session() as session:
+        session.add_all([model1, model2, model3])
+
+
+    yield async_engine
+
+    # Clean up
+    async with await TestModel.new_session() as session:
+        conn = await session.connection()
+        await conn.run_sync(TestModel.metadata.drop_all)
+
+    TestModel.__active_engine__ = None

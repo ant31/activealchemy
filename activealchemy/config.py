@@ -49,7 +49,6 @@ class PostgreSQLConfigSchema(BaseConfig):
     def uri(self) -> str:
         return self.async_uri()
 
-
     def async_uri(self) -> str:
         host = f"postgresql+{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
         params = "&".join([f"{k}={v}" for k, v in self.params.items()])

@@ -1,65 +1,22 @@
 """
 Unit tests for the async Select class
 """
-from contextlib import suppress
 
 import pytest
-import pytest_asyncio
-from sqlalchemy import Column, String
+
+
 
 from activealchemy.aio import Base
 from activealchemy.aio.activerecord import Select
 
 
-class TestModel(Base):
-    """Test model for select tests"""
-    __tablename__ = "test_select_models"
-    
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-
-
-@pytest_asyncio.fixture
-async def setup_select(async_engine):
-    """Set up select tests"""
-    TestModel.set_engine(async_engine)
-
-    # Clean up
-
-    with suppress(Exception):
-        async with await TestModel.new_session() as session:
-            conn = await session.connection()
-            await conn.run_sync(TestModel.metadata.drop_all)
-
-    # Create the table
-    async with await TestModel.new_session() as session:
-        conn = await session.connection()
-        await conn.run_sync(TestModel.metadata.create_all)
-        await session.commit()
-    
-    # Add test data
-    model1 = TestModel(id="1", name="Test 1")
-    model2 = TestModel(id="2", name="Test 2")
-    model3 = TestModel(id="3", name="Test 3")
-    
-    async with await TestModel.new_session() as session:
-        session.add_all([model1, model2, model3])
-        # await session.commit()
-    
-    yield async_engine
-    
-    # Clean up
-    async with await TestModel.new_session() as session:
-        conn = await session.connection()
-        await conn.run_sync(TestModel.metadata.drop_all)
-
-    TestModel.__active_engine__ = None
 
 
 @pytest.mark.asyncio
-async def test_select_init(setup_select):
+async def test_select_init(setup_select, test_model):
     """Test Select class initialization"""
     # Test initialization with session
+    TestModel = test_model
     async with await TestModel.new_session() as session:
         select = TestModel.select(session=session)
         assert select.session == session
@@ -72,9 +29,10 @@ async def test_select_init(setup_select):
 
 
 @pytest.mark.asyncio
-async def test_select_scalars(setup_select):
+async def test_select_scalars(async_engine, setup_select, test_model):
     """Test Select.scalars method"""
     # With provided session
+    TestModel = test_model
     async with await TestModel.new_session() as session:
         select = TestModel.select(session=session)
         result = await select.scalars()
@@ -90,8 +48,9 @@ async def test_select_scalars(setup_select):
 
 
 @pytest.mark.asyncio
-async def test_select_where(setup_select):
+async def test_select_where(setup_select, test_model):
     """Test Select with where clause"""
+    TestModel = test_model
     async with await TestModel.new_session() as session:
         select = TestModel.select(session=session).where(TestModel.name == "Test 2")
         result = await select.scalars()
@@ -101,8 +60,9 @@ async def test_select_where(setup_select):
 
 
 @pytest.mark.asyncio
-async def test_select_order_by(setup_select):
+async def test_select_order_by(setup_select, test_model):
     """Test Select with order_by clause"""
+    TestModel = test_model
     async with await TestModel.new_session() as session:
         select = TestModel.select(session=session).order_by(TestModel.name.desc())
         result = await select.scalars()
@@ -114,8 +74,9 @@ async def test_select_order_by(setup_select):
 
 
 @pytest.mark.asyncio
-async def test_select_limit(setup_select):
+async def test_select_limit(setup_select, test_model):
     """Test Select with limit clause"""
+    TestModel = test_model
     async with await TestModel.new_session() as session:
         select = TestModel.select(session=session).limit(2)
         result = await select.scalars()

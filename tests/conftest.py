@@ -23,22 +23,22 @@ def db_config():
     return PostgreSQLConfigSchema()
 
 
-@pytest.fixture
-def async_engine(db_config: PostgreSQLConfigSchema) -> ActiveEngine:
-    """Create an async engine instance for testing."""
-    # Ensure ActiveEngine is initialized correctly
-    engine = ActiveEngine(config=db_config, echo=db_config.debug) # Pass echo explicitly if needed
-    # The Base model needs the engine set
-    DemoBase.set_engine(engine) # Set the engine on the Base
-    return engine
+# @pytest.fixture
+# def async_engine(db_config: PostgreSQLConfigSchema) -> ActiveEngine:
+#     """Create an async engine instance for testing."""
+#     # Ensure ActiveEngine is initialized correctly
+#     engine = ActiveEngine(config=db_config, echo=db_config.debug) # Pass echo explicitly if needed
+#     # The Base model needs the engine set
+#     DemoBase.set_engine(engine) # Set the engine on the Base
+#     return engine
 
 
-@pytest_asyncio.fixture
-async def aclean_tables(async_engine: ActiveEngine):
-    """Fixture to clean tables before and after async tests."""
-    async with async_engine.engine().begin() as conn:
-        await conn.run_sync(DemoBase.metadata.drop_all)
-        await conn.run_sync(DemoBase.metadata.create_all)
-    yield
-    async with async_engine.engine().begin() as conn:
-        await conn.run_sync(DemoBase.metadata.drop_all)
+# @pytest_asyncio.fixture
+# async def aclean_tables(async_engine: ActiveEngine):
+#     """Fixture to clean tables before and after async tests."""
+#     async with async_engine.engine().begin() as conn:
+#         await conn.run_sync(DemoBase.metadata.drop_all)
+#         await conn.run_sync(DemoBase.metadata.create_all)
+#     yield
+#     async with async_engine.engine().begin() as conn:
+#         await conn.run_sync(DemoBase.metadata.drop_all)
