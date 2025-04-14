@@ -47,9 +47,10 @@ class PostgreSQLConfigSchema(BaseConfig):
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
     def uri(self) -> str:
-        return self.async_uri()
+        return self.build_dsn()
 
-    def async_uri(self) -> str:
+
+    def build_dsn(self) -> str:
         params = self.params.copy()
         if "sslmode" in params and self.driver == "asyncpg":
             logger.debug("Adjusting 'sslmode' to 'ssl' in config params for asyncpg.")
