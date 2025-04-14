@@ -1,8 +1,14 @@
+import logging
 from typing import Any, ClassVar, TypeVar
 from pydantic import BaseModel, ConfigDict
 
 from pydantic.fields import FieldInfo
 from .activerecord import ActiveRecord, Base
+
+# Generic TypeVar for ActiveRecord subclasses used in Schema definition
+T = TypeVar("T", bound=Base)
+
+logger = logging.getLogger(__name__)
 
 
 # Generic TypeVar for ActiveRecord subclasses used in Schema definition
@@ -66,10 +72,8 @@ class Schema[T: "ActiveRecord"](BaseModel):
                 # Try to get type from existing annotations if field name matches
                 f_annotation = current_annotations.get(f_name, Any) # Default to Any if not annotated
 
-            # Use FieldInfo for more control if needed, otherwise default is fine
-            new_fields[f_name] = FieldInfo.from_annotation(
-                annotation=f_annotation, default=f_value
-            )
+            # Use FieldInfo constructor directly for Pydantic v2 compatibility
+            new_fields[f_name] = FieldInfo(annotation=f_annotation, default=f_value)
             # Update annotations directly for Pydantic v2 rebuild
             cls.__annotations__[f_name] = f_annotation
 
