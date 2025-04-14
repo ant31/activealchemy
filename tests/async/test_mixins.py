@@ -1,10 +1,11 @@
 """
 Tests for activealchemy/mixins.py
 """
-import pytest
-import uuid
 import asyncio
-from datetime import datetime, timedelta, timezone
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 # Use the setup fixture defined in async/conftest.py
 pytestmark = pytest.mark.usefixtures("setup_mixin_tests")
@@ -39,7 +40,7 @@ async def test_pkmixin_find(mock_pk_model_class):
 @pytest.mark.asyncio
 async def test_updatemixin_timestamps(mock_combined_model_class):
     """Test that UpdateMixin adds and manages timestamps."""
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
     await asyncio.sleep(0.01) # Ensure time progresses slightly
 
     instance = mock_combined_model_class(name="timestamp_test")
@@ -53,7 +54,7 @@ async def test_updatemixin_timestamps(mock_combined_model_class):
     await instance.refresh() # Get DB values
 
     await asyncio.sleep(0.01)
-    end_time = datetime.now(timezone.utc)
+    end_time = datetime.now(UTC)
 
     assert isinstance(instance.created_at, datetime)
     assert isinstance(instance.updated_at, datetime)
@@ -90,20 +91,20 @@ async def test_updatemixin_queries(mock_combined_model_class):
     # Create instances with varying timestamps
     instance1 = await Model(name="q_old").save(commit=True)
     await asyncio.sleep(0.05)
-    time_after_1 = datetime.now(timezone.utc)
+    # time_after_1 = datetime.now(UTC) # Unused
     await asyncio.sleep(0.05)
     instance2 = await Model(name="q_mid").save(commit=True)
     await asyncio.sleep(0.05)
     instance3 = await Model(name="q_new").save(commit=True)
     await asyncio.sleep(0.05)
-    time_after_3 = datetime.now(timezone.utc)
+    # time_after_3 = datetime.now(UTC) # Unused
     await asyncio.sleep(0.05)
 
     # Update instance2
     instance2.name = "q_mid_updated"
     await instance2.save(commit=True)
     await asyncio.sleep(0.05)
-    time_after_update = datetime.now(timezone.utc)
+    # time_after_update = datetime.now(UTC) # Unused
 
 
     # --- Test last_created ---
