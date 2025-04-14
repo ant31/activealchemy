@@ -12,7 +12,7 @@ class MockModel(Base):
     """A simple mock ActiveRecord model for testing schemas."""
     __tablename__ = "mock_models" # Required by Base/ActiveRecord
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False) # Example PK
+    id: Mapped[int] = mapped_column(primary_key=True) # Example PK, removed init=False
     name: Mapped[str] = mapped_column()
     value: Mapped[Optional[int]] = mapped_column(default=None)
 
