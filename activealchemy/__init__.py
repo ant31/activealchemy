@@ -1,7 +1,18 @@
-"""
-ActiveAlchemy: SQLAlchemy extension with ActiveRecord-like functionality
+from activealchemy.activerecord import ActiveRecord, Base
+from activealchemy.select import Select
+from activealchemy.mixins import PKMixin, UpdateMixin
+from activealchemy.engine import ActiveEngine
+from activealchemy.schema import Schema
+from activealchemy.config import PostgreSQLConfigSchema
 
-This package provides both synchronous and asynchronous APIs for database operations.
-For backward compatibility, the root imports expose the synchronous API.
-"""
 
+__all__ = [
+    "PostgreSQLConfigSchema",
+    "ActiveEngine",
+    "ActiveRecord",
+    "Base",
+    "PKMixin",
+    "Schema",
+    "Select",
+    "UpdateMixin",
+]

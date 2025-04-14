@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column, relationship
 
-from activealchemy.aio.activerecord import ActiveRecord, PKMixin, UpdateMixin
+from activealchemy import ActiveRecord, PKMixin, UpdateMixin
 
 
 class ADemoBase(MappedAsDataclass, DeclarativeBase, ActiveRecord):

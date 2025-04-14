@@ -6,8 +6,8 @@ import pytest
 
 
 
-from activealchemy.aio import Base
-from activealchemy.aio.activerecord import Select
+from activealchemy import Select
+
 
 
 
@@ -17,15 +17,16 @@ async def test_select_init(setup_select, test_model):
     """Test Select class initialization"""
     # Test initialization with session
     TestModel = test_model
-    async with await TestModel.new_session() as session:
+    async with await TestModel.get_session() as session:
         select = TestModel.select(session=session)
-        assert select.session == session
-        assert select.cls == TestModel
+        assert select._session == session
+        assert select._orm_cls == TestModel
     
     # Test initialization without session
     select = Select[TestModel](TestModel)
-    assert select.session is None
-    assert select.cls == TestModel
+    select.set_context(session=None, cls=TestModel)
+    assert select._session is None
+    assert select._orm_cls == TestModel
 
 
 @pytest.mark.asyncio
@@ -33,7 +34,7 @@ async def test_select_scalars(async_engine, setup_select, test_model):
     """Test Select.scalars method"""
     # With provided session
     TestModel = test_model
-    async with await TestModel.new_session() as session:
+    async with await TestModel.get_session() as session:
         select = TestModel.select(session=session)
         result = await select.scalars()
         items = list(result)
@@ -51,7 +52,7 @@ async def test_select_scalars(async_engine, setup_select, test_model):
 async def test_select_where(setup_select, test_model):
     """Test Select with where clause"""
     TestModel = test_model
-    async with await TestModel.new_session() as session:
+    async with await TestModel.get_session() as session:
         select = TestModel.select(session=session).where(TestModel.name == "Test 2")
         result = await select.scalars()
         items = list(result)
@@ -63,7 +64,7 @@ async def test_select_where(setup_select, test_model):
 async def test_select_order_by(setup_select, test_model):
     """Test Select with order_by clause"""
     TestModel = test_model
-    async with await TestModel.new_session() as session:
+    async with await TestModel.get_session() as session:
         select = TestModel.select(session=session).order_by(TestModel.name.desc())
         result = await select.scalars()
         items = list(result)
@@ -77,7 +78,7 @@ async def test_select_order_by(setup_select, test_model):
 async def test_select_limit(setup_select, test_model):
     """Test Select with limit clause"""
     TestModel = test_model
-    async with await TestModel.new_session() as session:
+    async with await TestModel.get_session() as session:
         select = TestModel.select(session=session).limit(2)
         result = await select.scalars()
         items = list(result)

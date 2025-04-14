@@ -1,19 +1,14 @@
 import os
 from contextlib import suppress
 
-from activealchemy.aio import Base
-from activealchemy.aio.activerecord import Select
+from activealchemy import Base, Select, ActiveEngine, ActiveRecord, PostgreSQLConfigSchema
+
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
-from contextlib import suppress
-
 from sqlalchemy import Column, String
 
-from activealchemy.aio import ActiveEngine as AsyncActiveEngine
-from activealchemy.aio import ActiveRecord as AsyncActiveRecord
-from activealchemy.config import PostgreSQLConfigSchema
 
 
 # Database configuration for tests
@@ -40,8 +35,8 @@ def async_engine(db_config):
     """Create an async engine for tests"""
     db_config.driver = "asyncpg"
     db_config.params = {"ssl": "disable"}
-    engine = AsyncActiveEngine(db_config)
-    AsyncActiveRecord.set_engine(engine)
+    engine = ActiveEngine(db_config)
+    ActiveRecord.set_engine(engine)
     yield engine
     # engine.dispose_engines()
     # We need to handle the dispose_engines call differently for async
@@ -69,7 +64,7 @@ async def aclean_tables(async_engine):
     # City.delete_all(commit=True)
     # Country.delete_all(commit=True)
     # # Create a transaction to clean tables
-    async with await AsyncActiveRecord.new_session() as session:
+    async with await ActiveRecord.get_session() as session:
         for table in tables:
             with suppress(Exception):
                 await session.execute(text(f"TRUNCATE TABLE {table} CASCADE"))
@@ -98,12 +93,12 @@ async def setup_select(async_engine):
     # Clean up
 
     with suppress(Exception):
-        async with await TestModel.new_session() as session:
+        async with await TestModel.get_session() as session:
             conn = await session.connection()
             await conn.run_sync(TestModel.metadata.drop_all)
 
     # Create the table
-    async with await TestModel.new_session() as session:
+    async with await TestModel.get_session() as session:
         conn = await session.connection()
         await conn.run_sync(TestModel.metadata.create_all)
         await session.commit()
@@ -113,14 +108,14 @@ async def setup_select(async_engine):
     model2 = TestModel(id="2", name="Test 2")
     model3 = TestModel(id="3", name="Test 3")
 
-    async with await TestModel.new_session() as session:
+    async with await TestModel.get_session() as session:
         session.add_all([model1, model2, model3])
 
 
     yield async_engine
 
     # Clean up
-    async with await TestModel.new_session() as session:
+    async with await TestModel.get_session() as session:
         conn = await session.connection()
         await conn.run_sync(TestModel.metadata.drop_all)
 

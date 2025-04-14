@@ -3,7 +3,7 @@ import uuid
 import pytest
 
 
-from activealchemy.config import PostgreSQLConfigSchema
+from activealchemy import PostgreSQLConfigSchema
 
 
 # Utility fixtures

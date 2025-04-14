@@ -1,0 +1,77 @@
+import logging
+from typing import ClassVar, TypeVar, TYPE_CHECKING
+
+from sqlalchemy import Select as SaSelect, ScalarResult
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    from .activerecord import ActiveRecord
+
+
+logger = logging.getLogger(__name__)
+
+TSelect = TypeVar("TSelect", bound="ActiveRecord")
+
+
+class Select(SaSelect[tuple[TSelect]]): # Inherit directly from SQLAlchemy's Select
+    """
+    Async-aware Select wrapper for ActiveRecord queries.
+
+    Provides helper methods like `scalars()` for convenience.
+    """
+    # inherit_cache is a SQLAlchemy attribute, keep it if needed for specific caching behaviors
+    inherit_cache: ClassVar[bool] = True
+
+    # Store the target ORM class and optional session directly
+    _orm_cls: type[TSelect]
+    _session: AsyncSession | None
+
+    # # Need to override __init__ carefully to maintain Select's signature
+    # # while adding our custom attributes. Using __new__ might be safer
+    # but __init__ is often simpler if done right. Let's try __init__.
+
+    # We cannot directly change the signature of __init__ as it breaks Select.
+    # Instead, we'll add attributes *after* super().__init__ or use a factory method.
+
+    # Let's use a factory method approach within ActiveRecord.select()
+    # to keep this class cleaner and closer to SaSelect.
+
+    # This helper method will be called internally.
+    def set_context(self, cls: type[TSelect], session: AsyncSession | None):
+        self._orm_cls = cls
+        self._session = session
+        return self # Return self for chaining
+
+    async def scalars(self, session: AsyncSession | None = None) -> ScalarResult[TSelect]:
+        """
+        Executes the query and returns a ScalarResult yielding ORM instances.
+
+        Args:
+            session: An optional AsyncSession to execute the query with.
+                     If None, uses the session associated with the query
+                     or attempts to get a default session from the ORM class.
+
+        Returns:
+            A ScalarResult object.
+
+        Raises:
+            SQLAlchemyError: If the database query fails.
+            ValueError: If no session can be determined.
+        """
+        execution_session = session or self._session
+        if not execution_session:
+            # Try to get a session from the class if none was provided
+            logger.debug(f"No explicit session for scalars(), getting session from {self._orm_cls.__name__}")
+            execution_session = await self._orm_cls.get_session() # Use class method to get session
+
+        if not execution_session:
+             raise ValueError(f"Cannot execute query for {self._orm_cls.__name__}: No session provided or available.")
+
+        try:
+            logger.debug(f"Executing query for {self._orm_cls.__name__} with session {execution_session}")
+            result = await execution_session.execute(self)
+            return result.scalars()
+        except SQLAlchemyError as e:
+            logger.error(f"Error executing scalars query for {self._orm_cls.__name__}: {e}", exc_info=True)
+            raise e

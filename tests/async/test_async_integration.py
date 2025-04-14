@@ -14,7 +14,7 @@ from activealchemy.demo.amodels import ACity, ACountry, AResident
 async def test_integration_create_retrieve_update_delete(async_engine, aclean_tables, unique_id):
     """Test the full CRUD cycle in an integration test"""
 #    _ = await aclean_tables
-    async with await ACountry.new_session() as session:
+    async with await ACountry.get_session() as session:
 
         user = AResident(
             name=f"intuser_{unique_id}",
