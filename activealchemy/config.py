@@ -50,8 +50,13 @@ class PostgreSQLConfigSchema(BaseConfig):
         return self.async_uri()
 
     def async_uri(self) -> str:
+        params = self.params.copy()
+        if "sslmode" in params and self.driver == "asyncpg":
+            logger.debug("Adjusting 'sslmode' to 'ssl' in config params for asyncpg.")
+            params["ssl"] = params.pop("sslmode")
+
         host = f"postgresql+{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
-        params = "&".join([f"{k}={v}" for k, v in self.params.items()])
+        query_params = "&".join([f"{k}={v}" for k, v in params.items()])
         if params:
-            host = f"{host}?{params}"
+            host = f"{host}?{query_params}"
         return host
