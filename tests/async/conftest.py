@@ -120,3 +120,41 @@ async def setup_select(async_engine):
         await conn.run_sync(TestModel.metadata.drop_all)
 
     TestModel.__active_engine__ = None
+
+
+@pytest_asyncio.fixture
+async def setup_mixin_tests(async_engine, mock_pk_model_class, mock_update_model_class, mock_combined_model_class):
+    """Set up engine and tables for mixin tests."""
+    models = [mock_pk_model_class, mock_update_model_class, mock_combined_model_class]
+    for model in models:
+        model.set_engine(async_engine)
+
+    # Drop tables first (suppress errors if they don't exist)
+    async with await models[0].get_session() as session:
+        conn = await session.connection()
+        for model in reversed(models): # Drop in reverse order of potential dependencies
+            with suppress(Exception):
+                await conn.run_sync(model.metadata.drop_all)
+        await session.commit()
+
+
+    # Create tables
+    async with await models[0].get_session() as session:
+        conn = await session.connection()
+        for model in models:
+            await conn.run_sync(model.metadata.create_all)
+        await session.commit()
+
+    yield async_engine # Provide engine to tests if needed
+
+    # Clean up tables after tests
+    async with await models[0].get_session() as session:
+        conn = await session.connection()
+        for model in reversed(models):
+             with suppress(Exception):
+                 await conn.run_sync(model.metadata.drop_all)
+        await session.commit()
+
+    # Clear engine association
+    for model in models:
+        model.__active_engine__ = None
