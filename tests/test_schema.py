@@ -86,17 +86,16 @@ def test_schema_add_fields_typed(mock_schema_class, mock_model_class):
     # Define a temporary schema inheriting from the fixture schema
     class TempSchemaTyped(mock_schema_class):
        pass # Inherits fields and config
-
     TempSchemaTyped.add_fields(
         typed_field=(str, "typed_default"),
-        optional_typed_field=(Optional[bool], None)
+        optional_typed_field=(bool | None, None)
     )
 
     assert "typed_field" in TempSchemaTyped.model_fields
     assert TempSchemaTyped.model_fields["typed_field"].annotation is str
     assert "optional_typed_field" in TempSchemaTyped.model_fields
     # Pydantic resolves Optional[bool] to Union[bool, None], check type compatibility
-    assert TempSchemaTyped.model_fields["optional_typed_field"].annotation is Optional[bool]
+    assert TempSchemaTyped.model_fields["optional_typed_field"].annotation is (bool | None)
 
 
     # Test instantiation and validation
