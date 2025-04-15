@@ -81,9 +81,11 @@ class ActiveEngine:
             kwargs["connect_args"] = {}  # Initialize if not present
 
         # Ensure connect_args is a dictionary before proceeding
-        if not isinstance(kwargs.get("connect_args"), dict):
+        connect_args_val = kwargs.get("connect_args")
+        if not isinstance(connect_args_val, dict):
             logger.warning(
-                f"Expected 'connect_args' to be a dict, but got {type(kwargs.get('connect_args'))}. Resetting to empty dict."
+                f"Expected 'connect_args' to be a dict, but got {type(connect_args_val)}. "
+                "Resetting to empty dict."
             )
             kwargs["connect_args"] = {}
 
