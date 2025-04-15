@@ -11,12 +11,13 @@ from activealchemy import Select
 async def test_select_init(setup_select, test_model):
     """Test Select class initialization"""
     # Test initialization with session
+
     TestModel = test_model
     async with await TestModel.get_session() as session:
         select = TestModel.select(session=session)
         assert select._session == session
         assert select._orm_cls == TestModel
-    
+
     # Test initialization without session
     select = Select[TestModel](TestModel)
     select.set_context(session=None, cls=TestModel)

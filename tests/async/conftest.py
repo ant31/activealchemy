@@ -1,5 +1,4 @@
 import os
-from contextlib import suppress
 
 import pytest
 import pytest_asyncio
@@ -9,7 +8,7 @@ from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSche
 
 
 # Database configuration for tests
-@pytest.fixture
+@pytest.fixture(scope="session")
 def db_config():
     """Get database configuration from environment variables or use defaults"""
     return PostgreSQLConfigSchema(
@@ -23,52 +22,47 @@ def db_config():
     )
 
 
-
-
-
 # Async fixtures
-@pytest.fixture
-def async_engine(db_config):
+@pytest_asyncio.fixture
+async def async_engine(db_config):
     """Create an async engine for tests"""
     db_config.driver = "asyncpg"
-    db_config.params = {"ssl": "disable"}
+    db_config.params = {"ssl": "disable", "timeout": 5}
+    print("Creating async engine...")
     engine = ActiveEngine(db_config)
     ActiveRecord.set_engine(engine)
+    print("Set Engine")
     yield engine
+
+    print("\nDisposing async engines...") # Add print for debugging test runs
+    await engine.dispose_engines()
+    print("Async engines disposed.")
+
+
     # engine.dispose_engines()
     # We need to handle the dispose_engines call differently for async
     # This will use the sync_dispose method since __del__ can't await
-
-
-@pytest.fixture
-def sync_session(sync_engine):
-    """Create a sync session for tests"""
-    _, session_factory = sync_engine.session()
-    session = session_factory()
-    try:
-        yield session
-    finally:
-        session.rollback()
-
-        session.close()
-
+    #
 @pytest_asyncio.fixture
 async def aclean_tables(async_engine):
     """Clean all tables before and after tests"""
-    # List of tables to clean, ordered by dependency
-    tables = ["resident", "city", "country"]
-    # Resident.delete_all(commit=True)
-    # City.delete_all(commit=True)
-    # Country.delete_all(commit=True)
-    # # Create a transaction to clean tables
+    tables = ["test_select_models", "mock_pk_models", "mock_update_models",
+              "mock_combined_models", "resident_city", "resident", "city","country", ]
+    print("aclean")
+    # Use the engine manager provided by the fixture
+    # Get a session using the globally set engine manager
     async with await ActiveRecord.get_session() as session:
-        for table in tables:
-            with suppress(Exception):
-                await session.execute(text(f"TRUNCATE TABLE {table} CASCADE"))
+        print("Cleaning tables...")
+        async with session.begin(): # Use a transaction for cleanup
+            print("Cleaning tables in transaction...")
+            for table in tables: # Truncate in reverse dependency order
+                print(f"Truncating table: {table}") # Debug print
+                # Suppress errors if table doesn't exist
+                await session.execute(text(f'DELETE FROM "{table}"'))
+                print(f"Truncated table: {table}") # Debug print
+        # No explicit commit needed with session.begin()
 
-            # Table might not exist yet
-        await session.commit()
-
+    yield # Let the test run
 
 class TestModel(Base):
     """Test model for select tests"""
@@ -83,22 +77,15 @@ def test_model():
     return TestModel
 
 @pytest_asyncio.fixture
-async def setup_select(async_engine):
+async def setup_select(async_engine, aclean_tables, test_model):
     """Set up select tests"""
+    print("setup_select")
     TestModel.set_engine(async_engine)
 
     # Clean up
-
-    with suppress(Exception):
-        async with await TestModel.get_session() as session:
-            conn = await session.connection()
-            await conn.run_sync(TestModel.metadata.drop_all)
-
-    # Create the table
-    async with await TestModel.get_session() as session:
-        conn = await session.connection()
-        await conn.run_sync(TestModel.metadata.create_all)
-        await session.commit()
+    async with async_engine.engine().begin() as conn:
+        # Pass the specific model's metadata
+        await conn.run_sync(test_model.metadata.create_all)
 
     # Add test data
     model1 = TestModel(id="1", name="Test 1")
@@ -106,52 +93,18 @@ async def setup_select(async_engine):
     model3 = TestModel(id="3", name="Test 3")
 
     async with await TestModel.get_session() as session:
-        session.add_all([model1, model2, model3])
-
-
-    yield async_engine
-
-    # Clean up
-    async with await TestModel.get_session() as session:
-        conn = await session.connection()
-        await conn.run_sync(TestModel.metadata.drop_all)
-
-    TestModel.__active_engine__ = None
-
+        async with session.begin():
+            session.add_all([model1, model2, model3])
 
 @pytest_asyncio.fixture
-async def setup_mixin_tests(async_engine, mock_pk_model_class, mock_update_model_class, mock_combined_model_class):
+async def setup_mixin_tests(async_engine, aclean_tables,
+                            mock_pk_model_class, mock_update_model_class, mock_combined_model_class):
     """Set up engine and tables for mixin tests."""
     models = [mock_pk_model_class, mock_update_model_class, mock_combined_model_class]
-    for model in models:
-        model.set_engine(async_engine)
-
-    # Drop tables first (suppress errors if they don't exist)
-    async with await models[0].get_session() as session:
-        conn = await session.connection()
-        for model in reversed(models): # Drop in reverse order of potential dependencies
-            with suppress(Exception):
-                await conn.run_sync(model.metadata.drop_all)
-        await session.commit()
-
-
     # Create tables
-    async with await models[0].get_session() as session:
-        conn = await session.connection()
+    print("setup_mixin_tests")
+    async with async_engine.engine().begin() as conn:
+        print("Creating tables...")
         for model in models:
+            print(f"Creating table: {model.__tablename__}")
             await conn.run_sync(model.metadata.create_all)
-        await session.commit()
-
-    yield async_engine # Provide engine to tests if needed
-
-    # Clean up tables after tests
-    async with await models[0].get_session() as session:
-        conn = await session.connection()
-        for model in reversed(models):
-             with suppress(Exception):
-                 await conn.run_sync(model.metadata.drop_all)
-        await session.commit()
-
-    # Clear engine association
-    for model in models:
-        model.__active_engine__ = None

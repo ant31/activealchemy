@@ -56,15 +56,15 @@ async def test_integration_create_retrieve_update_delete(async_engine, aclean_ta
         assert c1_new is not None
         assert c1_new.code == "c2"
 
-#         new_cities = (await ACity.where(ACity.country_id == c1.id, session=session).scalars()).all()
-#         assert len(new_cities) == 3
-#         await ACountry.delete(c1_new, session=session)
-#         await session.commit()
-#         c1_new = await ACountry.find(c1.id, session=session)
-#         assert c1_new is None
+        new_cities = (await ACity.where(ACity.country_id == c1.id, session=session).scalars()).all()
+        assert len(new_cities) == 3
+        await ACountry.delete(c1_new, session=session)
+        await session.commit()
+        c1_new = await ACountry.find(c1.id, session=session)
+        assert c1_new is None
 
-#         new_cities = (await ACity.where(ACity.country_id == c1.id, session=session).scalars()).all()
-#         assert len(new_cities) == 0
+        new_cities = (await ACity.where(ACity.country_id == c1.id, session=session).scalars()).all()
+        assert len(new_cities) == 0
 
 
 # @pytest.mark.asyncio

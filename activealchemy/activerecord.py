@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Sequence
 from typing import Any, ClassVar, Literal, Self
-from warnings import deprecated
 
 import sqlalchemy as sa
 import sqlalchemy.dialects.postgresql as sa_pg
@@ -19,6 +18,7 @@ from sqlalchemy.orm import (
     DeclarativeBase,
     Mapper,
 )
+from typing_extensions import deprecated
 
 # Assuming ActiveEngine is imported from the refactored engine file
 from activealchemy.engine import ActiveEngine

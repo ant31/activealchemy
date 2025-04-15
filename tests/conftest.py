@@ -3,7 +3,7 @@ import uuid
 import pytest
 from sqlalchemy.orm import Mapped, mapped_column
 
-from activealchemy import ActiveRecord, Base, PostgreSQLConfigSchema, Schema
+from activealchemy import ActiveRecord, Base, Schema
 
 # --- Mock Model and Schema for test_schema.py ---
 
@@ -92,12 +92,4 @@ def mock_combined_model_class():
 def unique_id():
     """Generate a unique ID for test data"""
     return str(uuid.uuid4())
-
-
-@pytest.fixture
-def db_config():
-    """Provide database configuration for tests."""
-    # Example: Load from environment variables or a test config file
-    # For simplicity, using defaults here. Replace with your actual config loading.
-    return PostgreSQLConfigSchema()
 
