@@ -92,9 +92,8 @@ async def setup_select(async_engine, aclean_tables, test_model):
     model2 = TestModel(id="2", name="Test 2")
     model3 = TestModel(id="3", name="Test 3")
 
-    async with await TestModel.get_session() as session:
-        async with session.begin():
-            session.add_all([model1, model2, model3])
+    async with await TestModel.get_session() as session, session.begin():
+        session.add_all([model1, model2, model3])
 
 @pytest_asyncio.fixture
 async def setup_mixin_tests(async_engine, aclean_tables,
