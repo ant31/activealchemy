@@ -3,7 +3,7 @@ Tests for activealchemy/mixins.py
 """
 import asyncio
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
