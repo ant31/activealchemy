@@ -815,7 +815,8 @@ class ActiveRecord(AsyncAttrs):
 
         s = await cls.get_session(session)
         logger.info(
-            f"Executing bulk insert for {len(values)} rows of {cls.__name__} (on_conflict={on_conflict}, return={return_results})"
+            f"Executing bulk insert for {len(values)} rows of {cls.__name__} "
+            f"(on_conflict={on_conflict}, return={return_results})"
         )
         try:
             result = await s.execute(insert_stmt)
