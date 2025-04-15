@@ -1,9 +1,9 @@
 import uuid
 
 import pytest
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
-from activealchemy import ActiveRecord, Base, Schema
+from activealchemy import ActiveRecord, Base, PKMixin, Schema, UpdateMixin
 
 # --- Mock Model and Schema for test_schema.py ---
 
@@ -44,10 +44,6 @@ def mock_schema_class():
 
 
 # --- Mock Models and Fixtures for test_mixins.py ---
-
-from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass
-
-from activealchemy import PKMixin, UpdateMixin
 
 
 # Base class for mixin test models, following the pattern in demo models
