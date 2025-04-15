@@ -1,8 +1,9 @@
 import logging
 from typing import Any, ClassVar, TypeVar
-from pydantic import BaseModel, ConfigDict
 
+from pydantic import BaseModel, ConfigDict
 from pydantic.fields import FieldInfo
+
 from .activerecord import ActiveRecord, Base
 
 # Generic TypeVar for ActiveRecord subclasses used in Schema definition
@@ -14,14 +15,16 @@ logger = logging.getLogger(__name__)
 # Generic TypeVar for ActiveRecord subclasses used in Schema definition
 T = TypeVar("T", bound=Base)
 
+
 class Schema[T: "ActiveRecord"](BaseModel):
     """
     Base schema class for serialization/deserialization using Pydantic.
     Designed to work with ActiveRecord models.
     """
+
     model_config: ClassVar[ConfigDict] = ConfigDict(
-        from_attributes=True, # Allow creating schema from model attributes
-        extra="allow"         # Allow extra fields (e.g., metadata) if needed
+        from_attributes=True,  # Allow creating schema from model attributes
+        extra="allow",  # Allow extra fields (e.g., metadata) if needed
     )
 
     def to_model(self, modelcls: type[T]) -> T:
@@ -56,7 +59,7 @@ class Schema[T: "ActiveRecord"](BaseModel):
 
         for f_name, f_def in field_definitions.items():
             f_annotation: Any = None
-            f_value: Any = ... # Pydantic's way of saying 'required' initially
+            f_value: Any = ...  # Pydantic's way of saying 'required' initially
 
             if isinstance(f_def, tuple):
                 try:
@@ -70,13 +73,12 @@ class Schema[T: "ActiveRecord"](BaseModel):
                 # If only a value is provided, it's the default. Type needs to be inferred or Any.
                 f_value = f_def
                 # Try to get type from existing annotations if field name matches
-                f_annotation = current_annotations.get(f_name, Any) # Default to Any if not annotated
+                f_annotation = current_annotations.get(f_name, Any)  # Default to Any if not annotated
 
             # Use FieldInfo constructor directly for Pydantic v2 compatibility
             new_fields[f_name] = FieldInfo(annotation=f_annotation, default=f_value)
             # Update annotations directly for Pydantic v2 rebuild
             cls.__annotations__[f_name] = f_annotation
-
 
         # Update model_fields which stores FieldInfo objects
         cls.model_fields.update(new_fields)

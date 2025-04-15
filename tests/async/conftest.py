@@ -1,14 +1,11 @@
 import os
 from contextlib import suppress
 
-from activealchemy import Base, Select, ActiveEngine, ActiveRecord, PostgreSQLConfigSchema
-
-
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, text
 
+from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
 
 
 # Database configuration for tests

@@ -1,17 +1,16 @@
 from activealchemy.activerecord import ActiveRecord, Base
-from activealchemy.select import Select
-from activealchemy.mixins import PKMixin, UpdateMixin
-from activealchemy.engine import ActiveEngine
-from activealchemy.schema import Schema
 from activealchemy.config import PostgreSQLConfigSchema
-
+from activealchemy.engine import ActiveEngine
+from activealchemy.mixins import PKMixin, UpdateMixin
+from activealchemy.schema import Schema
+from activealchemy.select import Select
 
 __all__ = [
-    "PostgreSQLConfigSchema",
     "ActiveEngine",
     "ActiveRecord",
     "Base",
     "PKMixin",
+    "PostgreSQLConfigSchema",
     "Schema",
     "Select",
     "UpdateMixin",

@@ -13,8 +13,6 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-
-
 from activealchemy.config import PostgreSQLConfigSchema
 
 logger = logging.getLogger(__name__)
@@ -80,18 +78,19 @@ class ActiveEngine:
 
         # --- Connection Arguments ---
         if "connect_args" not in kwargs:
-            kwargs["connect_args"] = {} # Initialize if not present
+            kwargs["connect_args"] = {}  # Initialize if not present
 
         # Ensure connect_args is a dictionary before proceeding
         if not isinstance(kwargs.get("connect_args"), dict):
-             logger.warning(f"Expected 'connect_args' to be a dict, but got {type(kwargs.get('connect_args'))}. Resetting to empty dict.")
-             kwargs["connect_args"] = {}
+            logger.warning(
+                f"Expected 'connect_args' to be a dict, but got {type(kwargs.get('connect_args'))}. Resetting to empty dict."
+            )
+            kwargs["connect_args"] = {}
 
         # Set default connect_timeout if not provided within connect_args
         if "connect_timeout" not in kwargs["connect_args"]:
-             kwargs["connect_args"]["connect_timeout"] = self.config.connect_timeout
-             logger.debug(f"Setting default connect_timeout in connect_args: {kwargs['connect_args']}")
-
+            kwargs["connect_args"]["connect_timeout"] = self.config.connect_timeout
+            logger.debug(f"Setting default connect_timeout in connect_args: {kwargs['connect_args']}")
 
         # --- Echo SQL ---
         if "echo" not in kwargs:
@@ -100,24 +99,23 @@ class ActiveEngine:
 
         # Adjust connect_timeout -> timeout within connect_args for asyncpg driver
         if self.config.driver == "asyncpg":
-             logger.debug("Applying asyncpg-specific argument adjustments for connect_args.")
-             if (
-                 "connect_args" in kwargs
-                 and isinstance(kwargs["connect_args"], dict)
-                 and "connect_timeout" in kwargs["connect_args"]
-                 # Only add 'timeout' if it's not already explicitly set
-                 and "timeout" not in kwargs["connect_args"]
-             ):
-                 timeout = kwargs["connect_args"].pop("connect_timeout")
-                 kwargs["connect_args"]["timeout"] = timeout
-                 logger.debug(
-                     "Adjusted 'connect_timeout' to 'timeout' in connect_args for asyncpg: %s",
-                     kwargs["connect_args"],
-                 )
+            logger.debug("Applying asyncpg-specific argument adjustments for connect_args.")
+            if (
+                "connect_args" in kwargs
+                and isinstance(kwargs["connect_args"], dict)
+                and "connect_timeout" in kwargs["connect_args"]
+                # Only add 'timeout' if it's not already explicitly set
+                and "timeout" not in kwargs["connect_args"]
+            ):
+                timeout = kwargs["connect_args"].pop("connect_timeout")
+                kwargs["connect_args"]["timeout"] = timeout
+                logger.debug(
+                    "Adjusted 'connect_timeout' to 'timeout' in connect_args for asyncpg: %s",
+                    kwargs["connect_args"],
+                )
 
         logger.debug(f"Final prepared engine arguments: {kwargs}")
         return kwargs
-
 
     def engine(
         self,
@@ -143,9 +141,9 @@ class ActiveEngine:
 
         # Create a unique key for this engine configuration
         engine_key = f"{database}_{schema}_{isolation_level or 'default'}"
-        engine_conf_key = str(sorted(kwargs.items())) # Key based on extra kwargs
+        engine_conf_key = str(sorted(kwargs.items()))  # Key based on extra kwargs
         if engine_key not in self.engines:
-             self.engines[engine_key] = {}
+            self.engines[engine_key] = {}
 
         if engine_conf_key not in self.engines[engine_key]:
             logger.info(f"Creating new async engine for key: {engine_key} with kwargs: {kwargs}")
@@ -157,7 +155,7 @@ class ActiveEngine:
             final_kwargs = self.engine_kwargs.copy()
             if isolation_level:
                 final_kwargs["isolation_level"] = isolation_level
-            final_kwargs.update(kwargs) # Apply specific overrides last
+            final_kwargs.update(kwargs)  # Apply specific overrides last
 
             logger.debug(f"Creating async engine with DSN: {dsn} and final kwargs: {final_kwargs}")
             try:
@@ -168,7 +166,6 @@ class ActiveEngine:
                 raise
         else:
             logger.debug(f"Reusing existing async engine for key: {engine_key} with kwargs: {kwargs}")
-
 
         return self.engines[engine_key][engine_conf_key]
 
@@ -200,8 +197,8 @@ class ActiveEngine:
 
         # Use same keying logic as get_engine for consistency
         engine_key = f"{database}_{schema}_{isolation_level or 'default'}"
-        engine_conf_key = str(sorted(engine_kwargs.items())) # Key based on engine kwargs
-        session_conf_key = str(sorted(session_kwargs.items())) # Key based on session kwargs
+        engine_conf_key = str(sorted(engine_kwargs.items()))  # Key based on engine kwargs
+        session_conf_key = str(sorted(session_kwargs.items()))  # Key based on session kwargs
 
         # Ensure outer dictionary exists
         if engine_key not in self.sessions:
@@ -216,16 +213,15 @@ class ActiveEngine:
             **engine_kwargs,
         )
 
-
         if session_key not in self.sessions[engine_key]:
             logger.info(f"Creating new sessionmaker for key: {engine_key} / {session_key}")
             # Get or create the engine first
             # Default sessionmaker settings
             final_session_kwargs = {
-                "expire_on_commit": False, # Common default for async
+                "expire_on_commit": False,  # Common default for async
                 "class_": AsyncSession,
             }
-            final_session_kwargs.update(session_kwargs) # Apply user overrides
+            final_session_kwargs.update(session_kwargs)  # Apply user overrides
 
             logger.debug(f"Creating async_sessionmaker bound to engine {engine} with kwargs: {final_session_kwargs}")
             try:
@@ -235,8 +231,7 @@ class ActiveEngine:
                 logger.error(f"Failed to create async_sessionmaker: {e}", exc_info=True)
                 raise
         else:
-             logger.debug(f"Reusing existing sessionmaker for key: {engine_key} / {session_key}")
-
+            logger.debug(f"Reusing existing sessionmaker for key: {engine_key} / {session_key}")
 
         return engine, self.sessions[engine_key][session_key]
 
@@ -248,9 +243,9 @@ class ActiveEngine:
         disposed_count = 0
         for engine_key, engine_configs in self.engines.items():
             for conf_key, engine in engine_configs.items():
-                 logger.debug(f"Disposing engine for key: {engine_key} / {conf_key}")
-                 await engine.dispose()
-                 disposed_count += 1
+                logger.debug(f"Disposing engine for key: {engine_key} / {conf_key}")
+                await engine.dispose()
+                disposed_count += 1
         # Clear dictionaries after disposal
         self.engines.clear()
         self.sessions.clear()

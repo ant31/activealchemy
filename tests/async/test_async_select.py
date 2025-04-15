@@ -4,12 +4,7 @@ Unit tests for the async Select class
 
 import pytest
 
-
-
 from activealchemy import Select
-
-
-
 
 
 @pytest.mark.asyncio

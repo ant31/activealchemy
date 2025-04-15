@@ -1,25 +1,28 @@
 import logging
 import uuid
 from collections.abc import Sequence
-from typing import Self
 from datetime import datetime
-from sqlalchemy import func
-from sqlalchemy.orm import Mapped, MappedAsDataclass, mapped_column
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Self
 
-from .select import Select
+from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, MappedAsDataclass, mapped_column
+
 from .activerecord import ActiveRecord
+from .select import Select
 
 logger = logging.getLogger(__name__)
 
+
 class PKMixin(MappedAsDataclass, ActiveRecord):
     """Primary key mixin combined with ActiveRecord functionality."""
+
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
         server_default=func.gen_random_uuid(),
         default_factory=uuid.uuid4,
         kw_only=True,
-        init=True # Ensure it's part of __init__ for MappedAsDataclass
+        init=True,  # Ensure it's part of __init__ for MappedAsDataclass
     )
 
     @classmethod
@@ -31,14 +34,15 @@ class PKMixin(MappedAsDataclass, ActiveRecord):
 
 class UpdateMixin(MappedAsDataclass, ActiveRecord):
     """Update/create timestamp tracking mixin combined with ActiveRecord functionality."""
+
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(),
         onupdate=func.now(),
-        init=False # Should not be set on init
+        init=False,  # Should not be set on init
     )
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(),
-        init=False # Should not be set on init
+        init=False,  # Should not be set on init
     )
 
     @classmethod
@@ -46,7 +50,7 @@ class UpdateMixin(MappedAsDataclass, ActiveRecord):
         """Returns the most recently updated instance."""
         logger.debug(f"Finding last modified record for {cls.__name__}")
         query = cls.select(session=session).order_by(cls.updated_at.desc())
-        return await cls.first(query=query, session=session) # Use first() with the query
+        return await cls.first(query=query, session=session)  # Use first() with the query
 
     @classmethod
     async def last_created(cls, session: AsyncSession | None = None) -> Self | None:
@@ -64,10 +68,7 @@ class UpdateMixin(MappedAsDataclass, ActiveRecord):
 
     @classmethod
     async def get_since(
-        cls,
-        date: datetime,
-        query: Select[Self] | None = None,
-        session: AsyncSession | None = None
+        cls, date: datetime, query: Select[Self] | None = None, session: AsyncSession | None = None
     ) -> Sequence[Self]:
         """
         Returns all instances modified since a given datetime.

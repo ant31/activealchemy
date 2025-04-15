@@ -1,12 +1,9 @@
 import uuid
 
 import pytest
-
-
-from typing import Optional
-from activealchemy import PostgreSQLConfigSchema, Base, Schema, ActiveRecord
 from sqlalchemy.orm import Mapped, mapped_column
 
+from activealchemy import ActiveRecord, Base, PostgreSQLConfigSchema, Schema
 
 # --- Mock Model and Schema for test_schema.py ---
 
@@ -16,11 +13,11 @@ class MockModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column()
-    value: Mapped[Optional[int]] = mapped_column(default=None)
+    value: Mapped[int | None] = mapped_column(default=None)
 
     # Add __init__ if not using MappedAsDataclass or similar helpers
     # Base doesn't inherit MappedAsDataclass by default
-    def __init__(self, name: str, value: Optional[int] = None, **kw):
+    def __init__(self, name: str, value: int | None = None, **kw):
         super().__init__(**kw) # Pass extra kwargs to SQLAlchemy internals if needed
         self.name = name
         self.value = value
@@ -29,7 +26,7 @@ class MockModel(Base):
 class MockSchema(Schema[MockModel]):
     """Schema corresponding to MockModel."""
     name: str
-    value: Optional[int] = None
+    value: int | None = None
     # We don't include 'id' here typically, as it's often DB-generated
 
 
@@ -47,9 +44,11 @@ def mock_schema_class():
 
 
 # --- Mock Models and Fixtures for test_mixins.py ---
+
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass
+
 from activealchemy import PKMixin, UpdateMixin
-import datetime as dt
+
 
 # Base class for mixin test models, following the pattern in demo models
 class MockMixinBase(MappedAsDataclass, DeclarativeBase, ActiveRecord):

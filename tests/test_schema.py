@@ -1,8 +1,7 @@
-import pytest
-from pydantic import ValidationError
 from typing import Optional
 
-from activealchemy import ActiveRecord, Schema, Base
+import pytest
+from pydantic import ValidationError
 
 # --- Test Cases ---
 

@@ -1,17 +1,12 @@
 import logging
-from typing_extensions import deprecated
-
 from collections.abc import Sequence
-
-from typing import Any, ClassVar, Literal, Self, TypeVar
+from typing import Any, ClassVar, Literal, Self
+from warnings import deprecated
 
 import sqlalchemy as sa
 import sqlalchemy.dialects.postgresql as sa_pg
-
 from pydantic_core import to_jsonable_python
-from sqlalchemy import FromClause, ScalarResult
-
-from sqlalchemy import func
+from sqlalchemy import FromClause, ScalarResult, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
@@ -19,7 +14,6 @@ from sqlalchemy.ext.asyncio import (
     async_object_session,
     async_sessionmaker,
 )
-
 from sqlalchemy.orm import (
     ColumnProperty,
     DeclarativeBase,
@@ -33,9 +27,10 @@ from activealchemy.select import Select
 logger = logging.getLogger(__name__)
 
 
- # Generic type for the model class
+# Generic type for the model class
 
 # --- ActiveRecord Core (Async) ---
+
 
 class ActiveRecord(AsyncAttrs):
     """
@@ -44,17 +39,17 @@ class ActiveRecord(AsyncAttrs):
     Provides convenience methods for database operations (CRUD, queries)
     directly on the model class or instances.
     """
+
     # --- Class Attributes ---
-    __tablename__: ClassVar[str] # Must be defined by subclasses
-    __schema__: ClassVar[str] = "public" # Default schema
-    __table__: ClassVar[FromClause] # Populated by SQLAlchemy mapper
-    __mapper__: ClassVar[Mapper[Any]] # Populated by SQLAlchemy mapper
+    __tablename__: ClassVar[str]  # Must be defined by subclasses
+    __schema__: ClassVar[str] = "public"  # Default schema
+    __table__: ClassVar[FromClause]  # Populated by SQLAlchemy mapper
+    __mapper__: ClassVar[Mapper[Any]]  # Populated by SQLAlchemy mapper
 
     # Direct reference to the configured ActiveEngine instance
     __active_engine__: ClassVar[ActiveEngine]
     # Session factory associated with this class (set via engine)
     _session_factory: ClassVar[async_sessionmaker[AsyncSession] | None] = None
-
 
     # --- Engine Management ---
     @classmethod
@@ -74,7 +69,7 @@ class ActiveRecord(AsyncAttrs):
             raise TypeError("Engine must be an instance of ActiveEngine")
         cls.__active_engine__ = engine
         # Retrieve and store the session factory for this class's default schema/db
-        _, session_factory = engine.session(schema=cls.__schema__) # Use class schema
+        _, session_factory = engine.session(schema=cls.__schema__)  # Use class schema
         cls._session_factory = session_factory
         logger.info(f"ActiveEngine and session factory set for {cls.__name__}")
 
@@ -89,15 +84,14 @@ class ActiveRecord(AsyncAttrs):
         Raises ValueError if the engine/session factory hasn't been set.
         """
         if cls._session_factory is None:
-             # Attempt to set it if engine exists but factory wasn't retrieved?
-             if hasattr(cls, "__active_engine__") and cls.__active_engine__:
-                 logger.warning(f"Session factory not set for {cls.__name__}, attempting retrieval from engine.")
-                 cls.set_engine(cls.__active_engine__) # This will set _session_factory
-                 if cls._session_factory:
-                     return cls._session_factory
-             raise ValueError(f"Session factory not configured for {cls.__name__}. Call set_engine first.")
+            # Attempt to set it if engine exists but factory wasn't retrieved?
+            if hasattr(cls, "__active_engine__") and cls.__active_engine__:
+                logger.warning(f"Session factory not set for {cls.__name__}, attempting retrieval from engine.")
+                cls.set_engine(cls.__active_engine__)  # This will set _session_factory
+                if cls._session_factory:
+                    return cls._session_factory
+            raise ValueError(f"Session factory not configured for {cls.__name__}. Call set_engine first.")
         return cls._session_factory
-
 
     @classmethod
     @deprecated("use get_session() instead.")
@@ -133,7 +127,7 @@ class ActiveRecord(AsyncAttrs):
             return session
 
         # Create a new session from the factory
-        factory = cls.session_factory() # Raises ValueError if not configured
+        factory = cls.session_factory()  # Raises ValueError if not configured
         new_session = factory()
         logger.debug(f"Created new session for {cls.__name__}: {new_session}")
         return new_session
@@ -158,7 +152,7 @@ class ActiveRecord(AsyncAttrs):
             A tuple containing the session and the (potentially merged) object.
         """
         if session is None:
-            session = obj.obj_session() # Check if already associated
+            session = obj.obj_session()  # Check if already associated
 
         if session is None:
             # If still no session, get a default one
@@ -168,18 +162,17 @@ class ActiveRecord(AsyncAttrs):
             logger.debug(f"Merging object {obj} into session {session}")
             obj = await session.merge(obj)
         elif obj not in session:
-             # If session provided, but object not in it, merge it.
-             logger.debug(f"Object {obj} not in provided session {session}, merging.")
-             obj = await session.merge(obj)
+            # If session provided, but object not in it, merge it.
+            logger.debug(f"Object {obj} not in provided session {session}, merging.")
+            obj = await session.merge(obj)
 
         return session, obj
-
 
     # --- Instance Representation & Data Handling (Merged from BaseActiveRecord) ---
     def __str__(self):
         """Return a string representation, including primary key if available."""
-        pk = getattr(self, "id", "id?") # Assumes 'id' is the PK attribute
-        return f"{self.__class__.__name__}({pk})" # Use class name for clarity
+        pk = getattr(self, "id", "id?")  # Assumes 'id' is the PK attribute
+        return f"{self.__class__.__name__}({pk})"  # Use class name for clarity
 
     def __repr__(self) -> str:
         """Return a technical representation, same as __str__."""
@@ -196,9 +189,9 @@ class ActiveRecord(AsyncAttrs):
         """Return a unique key string for this instance (Class:id)."""
         pk = getattr(self, "id", None)
         if pk is None:
-             # Handle case where object might be transient (no ID yet)
-             return f"{self.__class__.__name__}:transient_{id(self)}"
-             # Or raise error: raise AttributeError(f"{self.__class__.__name__} instance has no 'id' attribute set.")
+            # Handle case where object might be transient (no ID yet)
+            return f"{self.__class__.__name__}:transient_{id(self)}"
+            # Or raise error: raise AttributeError(f"{self.__class__.__name__} instance has no 'id' attribute set.")
         return f"{self.__class__.__name__}:{pk}"
 
     @classmethod
@@ -219,16 +212,16 @@ class ActiveRecord(AsyncAttrs):
             for col in cls.__table__.columns:
                 py_type = None
                 try:
-                     # Attempt to get the Python type from the column type
-                     py_type = col.type.python_type
+                    # Attempt to get the Python type from the column type
+                    py_type = col.type.python_type
                 except NotImplementedError:
-                     logger.warning(f"Could not determine Python type for column '{col.name}' of type {col.type}")
+                    logger.warning(f"Could not determine Python type for column '{col.name}' of type {col.type}")
 
                 default_val = col.default.arg if col.default else None
                 field_data[col.name] = (py_type, default_val)
         except Exception as e:
-             logger.error(f"Error inspecting columns for {cls.__name__}: {e}", exc_info=True)
-             raise # Or return partial data: return field_data
+            logger.error(f"Error inspecting columns for {cls.__name__}: {e}", exc_info=True)
+            raise  # Or return partial data: return field_data
         return field_data
 
     def to_dict(self, with_meta: bool = False, fields: set[str] | None = None) -> dict[str, Any]:
@@ -262,13 +255,13 @@ class ActiveRecord(AsyncAttrs):
                     data[key] = getattr(self, key)
                 except Exception as e:
                     logger.warning(f"Could not retrieve attribute '{key}' for {self}: {e}")
-                    data[key] = None # Or some other placeholder
+                    data[key] = None  # Or some other placeholder
         else:
             # Fallback for non-mapped objects? Unlikely for ActiveRecord.
             logger.warning(f"Instance {self} does not seem to be mapped by SQLAlchemy.")
             # Simple __dict__ might include SQLAlchemy state (_sa_...)
             # data = {k: v for k, v in self.__dict__.items() if not k.startswith('_sa_')}
-            return {} # Or raise error
+            return {}  # Or raise error
 
         if with_meta:
             classname = f"{self.__class__.__module__}:{self.__class__.__name__}"
@@ -322,7 +315,7 @@ class ActiveRecord(AsyncAttrs):
         if not hasattr(cls, "__mapper__"):
             raise ValueError(f"Cannot load data: Class {cls.__name__} is not mapped by SQLAlchemy.")
 
-        obj = cls() # Create a new instance
+        obj = cls()  # Create a new instance
 
         # Get names of mapped column attributes
         col_prop_keys = {p.key for p in cls.__mapper__.iterate_properties if isinstance(p, ColumnProperty)}
@@ -340,9 +333,7 @@ class ActiveRecord(AsyncAttrs):
         logger.debug(f"Loaded {len(loaded_keys)} attributes onto new {cls.__name__} instance: {loaded_keys}")
         return obj
 
-
     # --- Basic CRUD Operations ---
-
 
     @classmethod
     async def add(cls, obj: Self, commit=False, session: AsyncSession | None = None) -> Self:
@@ -397,17 +388,17 @@ class ActiveRecord(AsyncAttrs):
                 # Refresh instances to get DB defaults, etc.
                 for obj in objs:
                     try:
-                         await s.refresh(obj)
+                        await s.refresh(obj)
                     except SQLAlchemyError as refresh_err:
-                         # Log error but continue refreshing others? Or re-raise?
-                         logger.warning(f"Failed to refresh instance {obj} after add_all commit: {refresh_err}")
+                        # Log error but continue refreshing others? Or re-raise?
+                        logger.warning(f"Failed to refresh instance {obj} after add_all commit: {refresh_err}")
             else:
-                 # Flush to get IDs etc. without committing transaction
-                 logger.debug(f"Flushing session {s} for multiple {cls.__name__} (no commit)")
-                 await s.flush(objs)
-                 # Expire attributes
-                 for obj in objs:
-                     s.expire(obj)
+                # Flush to get IDs etc. without committing transaction
+                logger.debug(f"Flushing session {s} for multiple {cls.__name__} (no commit)")
+                await s.flush(objs)
+                # Expire attributes
+                for obj in objs:
+                    s.expire(obj)
 
         except SQLAlchemyError as e:
             logger.error(f"Error in add_all for {cls.__name__}: {e}", exc_info=True)
@@ -415,7 +406,6 @@ class ActiveRecord(AsyncAttrs):
             await s.rollback()
             raise e
         return objs
-
 
     @classmethod
     async def delete(cls, obj: Self, commit: bool = True, session: AsyncSession | None = None) -> None:
@@ -438,9 +428,9 @@ class ActiveRecord(AsyncAttrs):
                 logger.debug(f"Committing session {s} after deleting {obj_in_session}")
                 await s.commit()
             else:
-                 # Flush to send DELETE statement without committing transaction
-                 logger.debug(f"Flushing session {s} for delete {obj_in_session} (no commit)")
-                 await s.flush([obj_in_session])
+                # Flush to send DELETE statement without committing transaction
+                logger.debug(f"Flushing session {s} for delete {obj_in_session} (no commit)")
+                await s.flush([obj_in_session])
 
         except SQLAlchemyError as e:
             logger.error(f"Error deleting instance {obj_in_session}: {e}", exc_info=True)
@@ -487,7 +477,6 @@ class ActiveRecord(AsyncAttrs):
         s.expire(obj_in_session, attribute_names=attribute_names)
         return obj_in_session
 
-
     async def expunge(self, session: AsyncSession | None = None) -> Self:
         """
         Removes the instance from the session. The object becomes detached.
@@ -519,7 +508,6 @@ class ActiveRecord(AsyncAttrs):
         logger.debug(f"Instance {obj_in_session} modified status in session {s}: {is_dirty}")
         return is_dirty
 
-
     # --- Session Commit/Rollback (Class-level convenience) ---
     # These might be less common in ActiveRecord pattern but can be useful.
 
@@ -534,7 +522,7 @@ class ActiveRecord(AsyncAttrs):
         except SQLAlchemyError as e:
             logger.error(f"Error committing session {session}: {e}", exc_info=True)
             logger.debug(f"Rolling back session {session} after commit error")
-            await session.rollback() # Rollback on commit error
+            await session.rollback()  # Rollback on commit error
             raise e
 
     @classmethod
@@ -550,7 +538,6 @@ class ActiveRecord(AsyncAttrs):
             logger.error(f"Error rolling back session {session}: {e}", exc_info=True)
             raise e
 
-
     # --- Querying Methods ---
 
     @classmethod
@@ -565,13 +552,12 @@ class ActiveRecord(AsyncAttrs):
             A Select object ready for filtering, ordering, etc.
         """
         # Create instance of our Select subclass
-        query = Select(cls, *args, **kwargs) # Pass the target class 'cls'
+        query = Select(cls, *args, **kwargs)  # Pass the target class 'cls'
         # Set the context (target ORM class and session)
         query.set_context(cls, session)
 
         logger.debug(f"Created Select query for {cls.__name__} with session {session}")
         return query
-
 
     @classmethod
     def where(cls, *args, session: AsyncSession | None = None, **kwargs) -> Select[Self]:
@@ -596,35 +582,29 @@ class ActiveRecord(AsyncAttrs):
             if key in mapper_props:
                 filters.append(getattr(cls, key) == value)
             else:
-                 logger.warning(f"Ignoring keyword argument '{key}' in where() for {cls.__name__} as it's not a mapped attribute.")
+                logger.warning(
+                    f"Ignoring keyword argument '{key}' in where() for {cls.__name__} as it's not a mapped attribute."
+                )
 
         # Combine positional and keyword filters
         all_filters = list(args) + filters
         if all_filters:
-             query = query.where(*all_filters)
-             logger.debug(f"Applied WHERE clause to {cls.__name__} query: {all_filters}")
+            query = query.where(*all_filters)
+            logger.debug(f"Applied WHERE clause to {cls.__name__} query: {all_filters}")
 
         return query
 
     @classmethod
-    async def _execute_query(
-        cls,
-        query: Select[Self],
-        session: AsyncSession | None = None
-    ) -> ScalarResult[Self]:
+    async def _execute_query(cls, query: Select[Self], session: AsyncSession | None = None) -> ScalarResult[Self]:
         """Internal helper to execute a Select query and return scalars."""
         # The Select object now handles session management in its scalars() method
         logger.debug(f"Executing query for {cls.__name__}: {query}")
         # If an explicit session is passed here, pass it to scalars()
         return await query.scalars(session=session)
 
-
     @classmethod
     async def all(
-        cls,
-        query: Select[Self] | None = None,
-        limit: int | None = None,
-        session: AsyncSession | None = None
+        cls, query: Select[Self] | None = None, limit: int | None = None, session: AsyncSession | None = None
     ) -> Sequence[Self]:
         """
         Returns all instances matching the query.
@@ -649,8 +629,8 @@ class ActiveRecord(AsyncAttrs):
     async def first(
         cls,
         query: Select[Self] | None = None,
-        order_by: Any = None, # ColumnElement or similar
-        session: AsyncSession | None = None
+        order_by: Any = None,  # ColumnElement or similar
+        session: AsyncSession | None = None,
     ) -> Self | None:
         """
         Returns the first instance matching the query, optionally ordered.
@@ -672,16 +652,15 @@ class ActiveRecord(AsyncAttrs):
                 q = q.order_by(pk_col.asc())
                 logger.debug(f"Defaulting order_by to PK: {pk_col.name} asc")
             except (AttributeError, IndexError):
-                 logger.warning(f"Could not determine default PK for ordering in first() for {cls.__name__}")
-                 # Proceed without ordering if PK cannot be found
+                logger.warning(f"Could not determine default PK for ordering in first() for {cls.__name__}")
+                # Proceed without ordering if PK cannot be found
         else:
-             q = q.order_by(order_by)
+            q = q.order_by(order_by)
 
         q = q.limit(1)
         logger.debug(f"Fetching first result for query on {cls.__name__}")
         result = await cls._execute_query(q, session)
         return result.first()
-
 
     @classmethod
     async def find_by(cls, *args, session: AsyncSession | None = None, **kwargs) -> Self | None:
@@ -701,8 +680,7 @@ class ActiveRecord(AsyncAttrs):
         logger.debug(f"Finding first {cls.__name__} by criteria: args={args}, kwargs={kwargs}")
         query = cls.where(*args, session=session, **kwargs)
         # Need to pass the session explicitly to first if provided here
-        return await cls.first(query=query, session=session) # Default ordering by PK
-
+        return await cls.first(query=query, session=session)  # Default ordering by PK
 
     @classmethod
     async def get(cls, pk: Any, session: AsyncSession | None = None) -> Self | None:
@@ -724,7 +702,6 @@ class ActiveRecord(AsyncAttrs):
         except SQLAlchemyError as e:
             logger.error(f"Error getting {cls.__name__} by PK {pk}: {e}", exc_info=True)
             raise e
-
 
     @classmethod
     async def count(cls, query: Select[Self] | None = None, session: AsyncSession | None = None) -> int:
@@ -748,14 +725,16 @@ class ActiveRecord(AsyncAttrs):
         logger.debug(f"Executing count query for {cls.__name__}: {count_q}")
         try:
             result = await s.execute(count_q)
-            count_scalar = result.scalar_one_or_none() # Should return one row with the count
+            count_scalar = result.scalar_one_or_none()  # Should return one row with the count
             return count_scalar if count_scalar is not None else 0
         except SQLAlchemyError as e:
             logger.error(f"Error executing count query for {cls.__name__}: {e}", exc_info=True)
             raise e
 
     @classmethod
-    def get_insert(cls, on_conflict: Literal["update", "nothing"] | None = None, index_elements=None, set_=None) -> sa_pg.Insert:
+    def get_insert(
+        cls, on_conflict: Literal["update", "nothing"] | None = None, index_elements=None, set_=None
+    ) -> sa_pg.Insert:
         """
         Creates a PostgreSQL INSERT statement for this class.
 
@@ -783,11 +762,11 @@ class ActiveRecord(AsyncAttrs):
             logger.debug(f"Created INSERT...ON CONFLICT DO UPDATE statement for {cls.__name__}")
         elif on_conflict == "nothing":
             if not index_elements:
-                 raise ValueError("'index_elements' is required for ON CONFLICT DO NOTHING")
+                raise ValueError("'index_elements' is required for ON CONFLICT DO NOTHING")
             ins = ins.on_conflict_do_nothing(index_elements=index_elements)
             logger.debug(f"Created INSERT...ON CONFLICT DO NOTHING statement for {cls.__name__}")
         else:
-             logger.debug(f"Created basic INSERT statement for {cls.__name__}")
+            logger.debug(f"Created basic INSERT statement for {cls.__name__}")
 
         return ins
 
@@ -797,7 +776,7 @@ class ActiveRecord(AsyncAttrs):
         values: list[dict[str, Any]],
         on_conflict: Literal["update", "nothing"] | None = None,
         index_elements: list[str] | None = None,
-        update_columns: list[str] | None = None, # Columns to update on conflict
+        update_columns: list[str] | None = None,  # Columns to update on conflict
         return_results: bool = False,
         session: AsyncSession | None = None,
     ) -> Sequence[Self] | None:
@@ -827,15 +806,17 @@ class ActiveRecord(AsyncAttrs):
         insert_stmt = cls.get_insert(
             on_conflict=on_conflict,
             index_elements=index_elements,
-            set_=update_columns # Pass columns to update directly
+            set_=update_columns,  # Pass columns to update directly
         )
         insert_stmt = insert_stmt.values(values)
 
         if return_results:
-            insert_stmt = insert_stmt.returning(cls) # Return the full model
+            insert_stmt = insert_stmt.returning(cls)  # Return the full model
 
         s = await cls.get_session(session)
-        logger.info(f"Executing bulk insert for {len(values)} rows of {cls.__name__} (on_conflict={on_conflict}, return={return_results})")
+        logger.info(
+            f"Executing bulk insert for {len(values)} rows of {cls.__name__} (on_conflict={on_conflict}, return={return_results})"
+        )
         try:
             result = await s.execute(insert_stmt)
             if return_results:
@@ -846,18 +827,18 @@ class ActiveRecord(AsyncAttrs):
                 # await s.commit() # Or leave commit to caller
                 return inserted_rows
             else:
-                 # await s.commit() # Or leave commit to caller
-                 return None
+                # await s.commit() # Or leave commit to caller
+                return None
         except SQLAlchemyError as e:
             logger.error(f"Error during bulk insert for {cls.__name__}: {e}", exc_info=True)
-            await s.rollback() # Rollback on error
+            await s.rollback()  # Rollback on error
             raise e
 
 
 # --- Base Declarative Class ---
 
+
 class Base(ActiveRecord, DeclarativeBase):
     """Convenience base class combining ActiveRecord and DeclarativeBase."""
+
     pass
-
-

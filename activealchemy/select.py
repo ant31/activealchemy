@@ -1,7 +1,8 @@
 import logging
-from typing import ClassVar, TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, TypeVar
 
-from sqlalchemy import Select as SaSelect, ScalarResult
+from sqlalchemy import ScalarResult
+from sqlalchemy import Select as SaSelect
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,12 +15,13 @@ logger = logging.getLogger(__name__)
 TSelect = TypeVar("TSelect", bound="ActiveRecord")
 
 
-class Select(SaSelect[tuple[TSelect]]): # Inherit directly from SQLAlchemy's Select
+class Select(SaSelect[tuple[TSelect]]):  # Inherit directly from SQLAlchemy's Select
     """
     Async-aware Select wrapper for ActiveRecord queries.
 
     Provides helper methods like `scalars()` for convenience.
     """
+
     # inherit_cache is a SQLAlchemy attribute, keep it if needed for specific caching behaviors
     inherit_cache: ClassVar[bool] = True
 
@@ -41,7 +43,7 @@ class Select(SaSelect[tuple[TSelect]]): # Inherit directly from SQLAlchemy's Sel
     def set_context(self, cls: type[TSelect], session: AsyncSession | None):
         self._orm_cls = cls
         self._session = session
-        return self # Return self for chaining
+        return self  # Return self for chaining
 
     async def scalars(self, session: AsyncSession | None = None) -> ScalarResult[TSelect]:
         """
@@ -63,10 +65,10 @@ class Select(SaSelect[tuple[TSelect]]): # Inherit directly from SQLAlchemy's Sel
         if not execution_session:
             # Try to get a session from the class if none was provided
             logger.debug(f"No explicit session for scalars(), getting session from {self._orm_cls.__name__}")
-            execution_session = await self._orm_cls.get_session() # Use class method to get session
+            execution_session = await self._orm_cls.get_session()  # Use class method to get session
 
         if not execution_session:
-             raise ValueError(f"Cannot execute query for {self._orm_cls.__name__}: No session provided or available.")
+            raise ValueError(f"Cannot execute query for {self._orm_cls.__name__}: No session provided or available.")
 
         try:
             logger.debug(f"Executing query for {self._orm_cls.__name__} with session {execution_session}")

@@ -1,10 +1,8 @@
 # pylint: disable=no-self-argument
 import logging
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, aliases
-from sqlalchemy.sql.expression import alias
-
 
 logger: logging.Logger = logging.getLogger("activealchemy")
 
@@ -48,7 +46,6 @@ class PostgreSQLConfigSchema(BaseConfig):
 
     def uri(self) -> str:
         return self.build_dsn()
-
 
     def build_dsn(self) -> str:
         params = self.params.copy()
