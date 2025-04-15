@@ -41,7 +41,7 @@ async def test_pkmixin_find(setup_mixin_tests, mock_pk_model_class):
 @pytest.mark.asyncio
 async def test_updatemixin_timestamps(setup_mixin_tests, mock_update_model_class, mock_combined_model_class):
     """Test that UpdateMixin adds and manages timestamps."""
-    start_time = datetime.now(UTC)
+    # start_time = datetime.now(UTC) # Removed unused variable
     await asyncio.sleep(0.01) # Ensure time progresses slightly
 
     instance = mock_combined_model_class(name="timestamp_test")
@@ -55,7 +55,7 @@ async def test_updatemixin_timestamps(setup_mixin_tests, mock_update_model_class
 
 
         await asyncio.sleep(0.01)
-        end_time = datetime.now(UTC)
+        # end_time = datetime.now(UTC) # Removed unused variable
 
         assert isinstance(instance.created_at, datetime)
         assert isinstance(instance.updated_at, datetime)
