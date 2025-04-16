@@ -76,9 +76,11 @@ async def test_integration_first(async_engine, aclean_tables, unique_id):
     """Test the ActiveRecord.first() method."""
     async with await ACountry.get_session() as session:
         # Create some data with predictable order
-        c1 = await ACountry(name="Zimbabwe", code="ZW").save(commit=True, session=session) # Should be last alphabetically
+        c1 = await ACountry(name="Zimbabwe", code="ZW").save(commit=True, session=session)
+        # Should be last alphabetically
         await asyncio.sleep(0.01) # Ensure different timestamps if PKs were similar
-        c2 = await ACountry(name="Albania", code="AL").save(commit=True, session=session) # Should be first alphabetically
+        c2 = await ACountry(name="Albania", code="AL").save(commit=True, session=session)
+        # Should be first alphabetically
         await asyncio.sleep(0.01)
         c3 = await ACountry(name="Canada", code="CA").save(commit=True, session=session)
 
@@ -109,12 +111,14 @@ async def test_integration_first(async_engine, aclean_tables, unique_id):
         assert first_canada.code == "CA"
 
         # 5. Test first() with a query and order_by
-        query_ordered = ACountry.select().where(ACountry.name.like('%a%')).order_by(ACountry.name.asc()) # Albania, Canada, Zimbabwe -> Albania
+        query_ordered = ACountry.select().where(ACountry.name.like('%a%')).order_by(ACountry.name.asc())
+        # Albania, Canada, Zimbabwe -> Albania
         first_a_asc = await ACountry.first(query=query_ordered, session=session)
         assert first_a_asc is not None
         assert first_a_asc.id == c2.id # Albania
 
-        query_ordered_desc = ACountry.select().where(ACountry.name.like('%a%')).order_by(ACountry.name.desc()) # Zimbabwe, Canada, Albania -> Zimbabwe
+        query_ordered_desc = ACountry.select().where(ACountry.name.like('%a%')).order_by(ACountry.name.desc())
+        # Zimbabwe, Canada, Albania -> Zimbabwe
         first_a_desc = await ACountry.first(query=query_ordered_desc, session=session)
         assert first_a_desc is not None
         assert first_a_desc.id == c1.id # Zimbabwe
