@@ -84,6 +84,16 @@ def test_prep_engine_arguments_merges_config_kwargs(minimal_config):
     assert kwargs["pool_recycle"] == 3600
 
 
+def test_prep_engine_arguments_invalid_connect_args(minimal_config, caplog):
+    """Test _prep_engine_arguments handles non-dict connect_args."""
+    engine = ActiveEngine(config=minimal_config, connect_args="not_a_dict")
+    # Check that connect_args was reset to {} and default timeout applied
+    assert isinstance(engine.engine_kwargs["connect_args"], dict)
+    assert engine.engine_kwargs["connect_args"]["timeout"] == 10
+    # Check for the warning log message
+    assert "Expected 'connect_args' to be a dict" in caplog.text
+
+
 def test_get_engine_creation_and_caching(engine_manager):
     """Test engine() creates and caches engines correctly."""
     # First call - creates engine
@@ -130,6 +140,14 @@ def test_get_engine_creation_and_caching(engine_manager):
     engine_conf_key = str(sorted({"pool_pre_ping": True}.items()))
     assert engine_manager.engines["testdb_public_default"][engine_conf_key] is engine6
     assert len(engine_manager.engines["testdb_public_default"]) == 2 # Now two configs for this key
+
+
+def test_engine_creation_failure(engine_manager):
+    """Test that engine creation errors are propagated."""
+    with patch('activealchemy.engine.create_async_engine', side_effect=RuntimeError("DB connection failed")) as mock_create:
+        with pytest.raises(RuntimeError, match="DB connection failed"):
+            engine_manager.engine(database="faildb") # Trigger creation
+        mock_create.assert_called_once() # Ensure the mock was called
 
 
 def test_get_session_creation_and_caching(engine_manager):
@@ -200,3 +218,16 @@ async def test_dispose_engines(engine_manager):
         )
         assert engine_manager.engines == {}, "Engines dictionary not cleared"
         assert engine_manager.sessions == {}, "Sessions dictionary not cleared"
+
+
+def test_session_creation_failure(engine_manager):
+    """Test that sessionmaker creation errors are propagated."""
+    # First call to engine() is fine
+    engine_manager.engine()
+
+    # Mock sessionmaker to raise an error
+    with patch('activealchemy.engine.async_sessionmaker', side_effect=TypeError("Invalid session args")) as mock_create:
+        with pytest.raises(TypeError, match="Invalid session args"):
+            # Trigger sessionmaker creation with specific kwargs to ensure it's a new one
+            engine_manager.session(session_kwargs={"autoflush": False})
+        mock_create.assert_called_once() # Ensure the mock was called
