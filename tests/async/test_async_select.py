@@ -1,7 +1,7 @@
 """
 Unit tests for the async Select class
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
