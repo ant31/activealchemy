@@ -1,8 +1,10 @@
 """
 Unit tests for the async Select class
 """
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 
 @pytest.mark.asyncio
@@ -75,4 +77,30 @@ async def test_select_limit(setup_select, test_model):
         result = await select.scalars(session=session) # Pass session here
         items = list(result)
         assert len(items) == 2
+
+
+@pytest.mark.asyncio
+async def test_select_scalars_no_session(setup_select, test_model):
+    """Test Select.scalars raises ValueError if session is None."""
+    TestModel = test_model
+    select = TestModel.select()
+    with pytest.raises(ValueError, match="Session is required"):
+        # Explicitly pass None, although type hints should prevent this in real code
+        await select.scalars(session=None) # type: ignore
+
+
+@pytest.mark.asyncio
+async def test_select_scalars_db_error(setup_select, test_model):
+    """Test Select.scalars raises SQLAlchemyError on execution failure."""
+    TestModel = test_model
+    select = TestModel.select()
+
+    # Mock the session's execute method to raise an error
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = SQLAlchemyError("Database connection failed")
+
+    with pytest.raises(SQLAlchemyError, match="Database connection failed"):
+        await select.scalars(session=mock_session)
+
+    mock_session.execute.assert_awaited_once()
 
