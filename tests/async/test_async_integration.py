@@ -6,6 +6,7 @@ import asyncio
 import uuid
 
 import pytest
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError # Import necessary exceptions
 
 from activealchemy.demo.amodels import ACity, ACountry, AResident
 
@@ -214,13 +215,17 @@ async def test_integration_add_all(async_engine, aclean_tables, unique_id):
     # 6. Test add_all error handling (flush error - e.g., constraint)
     async with await ACountry.get_session() as session_flush_error:
         # Create a country first to cause a unique constraint violation
-        existing_country = await ACountry(name=f"Constraint_{unique_id}", code=f"CON{unique_id}").save(commit=True, session=session_flush_error)
+        # Removed unused variable assignment and fixed line length
+        await ACountry(name=f"Constraint_{unique_id}", code=f"CON{unique_id}").save(
+            commit=True, session=session_flush_error
+        )
 
         countries_violation = [
             ACountry(name=f"Valid_{unique_id}", code=f"VALID{unique_id}"),
             ACountry(name=f"Duplicate_{unique_id}", code=f"CON{unique_id}") # Duplicate code
         ]
-        with pytest.raises(Exception): # Catch broad exception, ideally IntegrityError from SQLAlchemy/DBAPI
+        # Catch a more specific SQLAlchemy error, likely IntegrityError for unique constraint
+        with pytest.raises(SQLAlchemyError):
              # Use the same session, commit=False to trigger flush error
             await ACountry.add_all(countries_violation, commit=False, session=session_flush_error)
 
