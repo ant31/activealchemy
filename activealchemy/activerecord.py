@@ -541,38 +541,38 @@ class ActiveRecord(AsyncAttrs):
     # --- Querying Methods ---
 
     @classmethod
-    def select(cls, *args, session: AsyncSession | None = None, **kwargs) -> Select[Self]:
+    def select(cls, *args, **kwargs) -> Select[Self]: # Remove session argument
         """
         Creates a base SQLAlchemy Select statement targeting this class.
 
         Args:
-            session: An optional session to associate with the query execution context.
+            *args: Positional arguments passed to SQLAlchemy's select().
+            **kwargs: Keyword arguments passed to SQLAlchemy's select().
 
         Returns:
             A Select object ready for filtering, ordering, etc.
         """
         # Create instance of our Select subclass
         query = Select(cls, *args, **kwargs)  # Pass the target class 'cls'
-        # Set the context (target ORM class and session)
-        query.set_context(cls, session)
+        # Set the context (target ORM class only)
+        query.set_context(cls)
 
-        logger.debug(f"Created Select query for {cls.__name__} with session {session}")
+        logger.debug(f"Created Select query for {cls.__name__}")
         return query
 
     @classmethod
-    def where(cls, *args, session: AsyncSession | None = None, **kwargs) -> Select[Self]:
+    def where(cls, *args, **kwargs) -> Select[Self]: # Remove session argument
         """
         Creates a Select statement with WHERE criteria applied.
 
         Args:
             *args: Positional WHERE clause elements (e.g., cls.column == value).
-            session: Optional session for the query context.
             **kwargs: Keyword arguments treated as equality filters (e.g., name="value").
 
         Returns:
             A Select object with the WHERE clause.
         """
-        query = cls.select(session=session)
+        query = cls.select() # No session passed here
 
         # Handle keyword arguments as equality conditions
         # Ensure kwargs match actual column names/attributes
@@ -595,11 +595,11 @@ class ActiveRecord(AsyncAttrs):
         return query
 
     @classmethod
-    async def _execute_query(cls, query: Select[Self], session: AsyncSession | None = None) -> ScalarResult[Self]:
+    async def _execute_query(cls, query: Select[Self], session: AsyncSession) -> ScalarResult[Self]: # Session required
         """Internal helper to execute a Select query and return scalars."""
-        # The Select object now handles session management in its scalars() method
-        logger.debug(f"Executing query for {cls.__name__}: {query}")
-        # If an explicit session is passed here, pass it to scalars()
+        # The Select object now requires the session in its scalars() method
+        logger.debug(f"Executing query for {cls.__name__} with session {session}: {query}")
+        # Pass the required session to scalars()
         return await query.scalars(session=session)
 
     @classmethod
@@ -617,13 +617,20 @@ class ActiveRecord(AsyncAttrs):
         Returns:
             A sequence of model instances.
         """
-        q = query if query is not None else cls.select(session=session)
+        q = query if query is not None else cls.select() # No session here
         if limit is not None:
             q = q.limit(limit)
 
         logger.debug(f"Fetching all results for query on {cls.__name__} (limit: {limit})")
-        result = await cls._execute_query(q, session)
-        return result.all()
+        # Manage session context if none provided
+        if session:
+            result = await cls._execute_query(q, session)
+            return result.all()
+        else:
+            async with await cls.get_session() as s:
+                result = await cls._execute_query(q, s)
+                # Eagerly load results before session closes
+                return result.all()
 
     @classmethod
     async def first(
@@ -643,7 +650,7 @@ class ActiveRecord(AsyncAttrs):
         Returns:
             The first matching model instance or None.
         """
-        q = query if query is not None else cls.select(session=session)
+        q = query if query is not None else cls.select() # No session here
 
         if order_by is None:
             # Default order by primary key ascending if possible
@@ -659,8 +666,16 @@ class ActiveRecord(AsyncAttrs):
 
         q = q.limit(1)
         logger.debug(f"Fetching first result for query on {cls.__name__}")
-        result = await cls._execute_query(q, session)
-        return result.first()
+        # Manage session context if none provided
+        if session:
+            result = await cls._execute_query(q, session)
+            return result.first()
+        else:
+            async with await cls.get_session() as s:
+                result = await cls._execute_query(q, s)
+                # Eagerly load result before session closes
+                return result.first()
+
 
     @classmethod
     async def find_by(cls, *args, session: AsyncSession | None = None, **kwargs) -> Self | None:
@@ -678,8 +693,9 @@ class ActiveRecord(AsyncAttrs):
             The first matching model instance or None.
         """
         logger.debug(f"Finding first {cls.__name__} by criteria: args={args}, kwargs={kwargs}")
-        query = cls.where(*args, session=session, **kwargs)
-        # Need to pass the session explicitly to first if provided here
+        query = cls.where(*args, **kwargs) # No session here
+        # Pass the session explicitly to first if provided here
+        # first() will handle context if session is None
         return await cls.first(query=query, session=session)  # Default ordering by PK
 
     @classmethod
@@ -694,14 +710,23 @@ class ActiveRecord(AsyncAttrs):
         Returns:
             The model instance or None if not found.
         """
-        s = await cls.get_session(session)
-        logger.debug(f"Getting {cls.__name__} by PK: {pk} using session {s}")
-        try:
-            result = await s.get(cls, pk)
-            return result
-        except SQLAlchemyError as e:
-            logger.error(f"Error getting {cls.__name__} by PK {pk}: {e}", exc_info=True)
-            raise e
+        # Manage session context if none provided
+        if session:
+            logger.debug(f"Getting {cls.__name__} by PK: {pk} using provided session {session}")
+            try:
+                return await session.get(cls, pk)
+            except SQLAlchemyError as e:
+                logger.error(f"Error getting {cls.__name__} by PK {pk} with provided session: {e}", exc_info=True)
+                raise e
+        else:
+            async with await cls.get_session() as s:
+                logger.debug(f"Getting {cls.__name__} by PK: {pk} using new session {s}")
+                try:
+                    # Use the context-managed session s
+                    return await s.get(cls, pk)
+                except SQLAlchemyError as e:
+                    logger.error(f"Error getting {cls.__name__} by PK {pk} with new session: {e}", exc_info=True)
+                    raise e # Re-raise after logging
 
     @classmethod
     async def count(cls, query: Select[Self] | None = None, session: AsyncSession | None = None) -> int:
@@ -715,21 +740,32 @@ class ActiveRecord(AsyncAttrs):
         Returns:
             The total number of matching rows.
         """
-        q = query if query is not None else cls.select(session=session)
+        q = query if query is not None else cls.select() # No session here
 
         # Construct a count query based on the original query's WHERE clause etc.
         # Reset limit/offset/order_by for count
         count_q = sa.select(func.count()).select_from(q.order_by(None).limit(None).offset(None).subquery())
 
-        s = await cls.get_session(session)
-        logger.debug(f"Executing count query for {cls.__name__}: {count_q}")
-        try:
-            result = await s.execute(count_q)
-            count_scalar = result.scalar_one_or_none()  # Should return one row with the count
-            return count_scalar if count_scalar is not None else 0
-        except SQLAlchemyError as e:
-            logger.error(f"Error executing count query for {cls.__name__}: {e}", exc_info=True)
-            raise e
+        # Manage session context if none provided
+        if session:
+            logger.debug(f"Executing count query for {cls.__name__} with provided session {session}: {count_q}")
+            try:
+                result = await session.execute(count_q)
+                count_scalar = result.scalar_one_or_none()
+                return count_scalar if count_scalar is not None else 0
+            except SQLAlchemyError as e:
+                logger.error(f"Error executing count query for {cls.__name__} with provided session: {e}", exc_info=True)
+                raise e
+        else:
+            async with await cls.get_session() as s:
+                logger.debug(f"Executing count query for {cls.__name__} with new session {s}: {count_q}")
+                try:
+                    result = await s.execute(count_q)
+                    count_scalar = result.scalar_one_or_none()
+                    return count_scalar if count_scalar is not None else 0
+                except SQLAlchemyError as e:
+                    logger.error(f"Error executing count query for {cls.__name__} with new session: {e}", exc_info=True)
+                    raise e
 
     @classmethod
     def get_insert(
