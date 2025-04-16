@@ -70,12 +70,19 @@ class Schema[T: "ActiveRecord"](BaseModel):
                         "or just a default value. tuples as default values are not directly allowed this way."
                     ) from e
             else:
-                # If only a value is provided, it's the default. Type needs to be inferred or Any.
+                # If only a value is provided, it's the default.
                 f_value = f_def
-                # Try to get type from existing annotations if field name matches
-                f_annotation = current_annotations.get(f_name, Any)  # Default to Any if not annotated
+                # Check if the field already exists (inherited or defined) in the model's fields
+                if f_name in cls.model_fields:
+                    # Preserve the existing annotation from the FieldInfo object
+                    f_annotation = cls.model_fields[f_name].annotation
+                else:
+                    # If it's a truly new field and only default is given, default to Any
+                    # This maintains the previous behavior for brand new fields.
+                    f_annotation = Any
 
             # Use FieldInfo constructor directly for Pydantic v2 compatibility
+            # Ensure the retrieved annotation is used
             new_fields[f_name] = FieldInfo(annotation=f_annotation, default=f_value)
             # Update annotations directly for Pydantic v2 rebuild
             cls.__annotations__[f_name] = f_annotation
