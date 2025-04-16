@@ -71,6 +71,68 @@ async def test_integration_create_retrieve_update_delete(async_engine, aclean_ta
         assert len(new_cities) == 0
 
 
+@pytest.mark.asyncio
+async def test_integration_first(async_engine, aclean_tables, unique_id):
+    """Test the ActiveRecord.first() method."""
+    async with await ACountry.get_session() as session:
+        # Create some data with predictable order
+        c1 = await ACountry(name="Zimbabwe", code="ZW").save(commit=True, session=session) # Should be last alphabetically
+        await asyncio.sleep(0.01) # Ensure different timestamps if PKs were similar
+        c2 = await ACountry(name="Albania", code="AL").save(commit=True, session=session) # Should be first alphabetically
+        await asyncio.sleep(0.01)
+        c3 = await ACountry(name="Canada", code="CA").save(commit=True, session=session)
+
+        # 1. Test first() without arguments (default order by PK)
+        # The actual order depends on UUID generation, so we can't reliably assert which one is first by PK.
+        # Instead, we'll just check that *a* record is returned.
+        first_by_pk = await ACountry.first(session=session)
+        assert first_by_pk is not None
+        assert isinstance(first_by_pk, ACountry)
+
+        # 2. Test first() with explicit order_by (name ascending)
+        first_by_name_asc = await ACountry.first(order_by=ACountry.name.asc(), session=session)
+        assert first_by_name_asc is not None
+        assert first_by_name_asc.id == c2.id
+        assert first_by_name_asc.name == "Albania"
+
+        # 3. Test first() with explicit order_by (name descending)
+        first_by_name_desc = await ACountry.first(order_by=ACountry.name.desc(), session=session)
+        assert first_by_name_desc is not None
+        assert first_by_name_desc.id == c1.id
+        assert first_by_name_desc.name == "Zimbabwe"
+
+        # 4. Test first() with a query (where clause)
+        query = ACountry.select().where(ACountry.code == "CA")
+        first_canada = await ACountry.first(query=query, session=session)
+        assert first_canada is not None
+        assert first_canada.id == c3.id
+        assert first_canada.code == "CA"
+
+        # 5. Test first() with a query and order_by
+        query_ordered = ACountry.select().where(ACountry.name.like('%a%')).order_by(ACountry.name.asc()) # Albania, Canada, Zimbabwe -> Albania
+        first_a_asc = await ACountry.first(query=query_ordered, session=session)
+        assert first_a_asc is not None
+        assert first_a_asc.id == c2.id # Albania
+
+        query_ordered_desc = ACountry.select().where(ACountry.name.like('%a%')).order_by(ACountry.name.desc()) # Zimbabwe, Canada, Albania -> Zimbabwe
+        first_a_desc = await ACountry.first(query=query_ordered_desc, session=session)
+        assert first_a_desc is not None
+        assert first_a_desc.id == c1.id # Zimbabwe
+
+
+        # 6. Test first() when no records match
+        query_none = ACountry.select().where(ACountry.code == "XX")
+        first_none = await ACountry.first(query=query_none, session=session)
+        assert first_none is None
+
+        # 7. Test first() using an externally provided session
+        # Create a new session
+        async with await ACountry.get_session() as external_session:
+            first_external_session = await ACountry.first(order_by=ACountry.name.asc(), session=external_session)
+            assert first_external_session is not None
+            assert first_external_session.id == c2.id # Should still find Albania
+
+
 # @pytest.mark.asyncio
 # async def test_integration_querying(engine_and_models, unique_id):
 #     """Test complex querying functionality"""
