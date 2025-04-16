@@ -187,14 +187,13 @@ async def test_dispose_engines(engine_manager):
     assert len(engine_manager.engines) == 2
     assert len(engine_manager.sessions) == 2
 
-    # Use patch.object to mock the read-only dispose method
-    with patch.object(engine1, 'dispose', new_callable=AsyncMock) as mock_dispose1, \
-         patch.object(engine2, 'dispose', new_callable=AsyncMock) as mock_dispose2:
-
+    # Patch the dispose method on the AsyncEngine class itself
+    # Target the actual location of the class method
+    with patch('sqlalchemy.ext.asyncio.AsyncEngine.dispose', new_callable=AsyncMock) as mock_dispose:
         await engine_manager.dispose_engines()
 
         # Assertions
-        mock_dispose1.assert_awaited_once()
-        mock_dispose2.assert_awaited_once()
+        # Check that dispose was awaited twice (once for each engine)
+        assert mock_dispose.await_count == 2, f"Expected dispose to be called twice, but was called {mock_dispose.await_count} times."
         assert engine_manager.engines == {}, "Engines dictionary not cleared"
         assert engine_manager.sessions == {}, "Sessions dictionary not cleared"
