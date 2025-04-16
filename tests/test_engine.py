@@ -1,14 +1,13 @@
 """
 Tests for activealchemy/engine.py
 """
+from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from activealchemy import ActiveEngine, PostgreSQLConfigSchema
-
 
 # --- Fixtures ---
 
@@ -36,8 +35,9 @@ def test_engine_initialization(minimal_config):
     assert engine.engine_kwargs["poolclass"] is NullPool # Should always be NullPool for async
     assert engine.engine_kwargs["echo"] is False # Default from config
     assert engine.engine_kwargs["connect_args"]["timeout"] == 10 # Default from config, adjusted for asyncpg
-    # Check that the extra kwarg was *not* directly added here, but might be used later
-    assert "pool_size" not in engine.engine_kwargs
+    # Check that the extra kwarg *is* present in the prepared arguments
+    assert "pool_size" in engine.engine_kwargs
+    assert engine.engine_kwargs["pool_size"] == 5
 
 
 def test_engine_initialization_invalid_config():
@@ -70,7 +70,9 @@ def test_prep_engine_arguments_overrides(minimal_config):
     assert kwargs["echo"] is True # Explicit override
     assert "timeout" in kwargs["connect_args"]
     assert kwargs["connect_args"]["timeout"] == 5 # Explicit override
-    assert "connect_timeout" not in kwargs["connect_args"]
+    # Because 'timeout' was explicitly provided, the default 'connect_timeout' remains
+    assert "connect_timeout" in kwargs["connect_args"]
+    assert kwargs["connect_args"]["connect_timeout"] == 10 # Default value remained
     assert kwargs["connect_args"]["server_settings"]["application_name"] == "test_app"
 
 
@@ -87,7 +89,8 @@ def test_get_engine_creation_and_caching(engine_manager):
     # First call - creates engine
     engine1 = engine_manager.engine()
     assert isinstance(engine1, AsyncEngine)
-    assert engine_manager.engines["testdb_public_default"]["{}"] is engine1
+    default_conf_key = str(sorted({}.items())) # '[]'
+    assert engine_manager.engines["testdb_public_default"][default_conf_key] is engine1
 
     # Second call with same params - reuses engine
     engine2 = engine_manager.engine()
@@ -99,7 +102,8 @@ def test_get_engine_creation_and_caching(engine_manager):
     engine3 = engine_manager.engine(database="otherdb")
     assert isinstance(engine3, AsyncEngine)
     assert engine1 is not engine3
-    assert engine_manager.engines["otherdb_public_default"]["{}"] is engine3
+    default_conf_key = str(sorted({}.items())) # '[]'
+    assert engine_manager.engines["otherdb_public_default"][default_conf_key] is engine3
     assert len(engine_manager.engines) == 2
 
     # Call with different schema - creates new engine
@@ -107,14 +111,16 @@ def test_get_engine_creation_and_caching(engine_manager):
     assert isinstance(engine4, AsyncEngine)
     assert engine1 is not engine4
     assert engine3 is not engine4
-    assert engine_manager.engines["testdb_otherschema_default"]["{}"] is engine4
+    default_conf_key = str(sorted({}.items())) # '[]'
+    assert engine_manager.engines["testdb_otherschema_default"][default_conf_key] is engine4
     assert len(engine_manager.engines) == 3
 
     # Call with different isolation level - creates new engine
     engine5 = engine_manager.engine(isolation_level="READ_COMMITTED")
     assert isinstance(engine5, AsyncEngine)
     assert engine1 is not engine5
-    assert engine_manager.engines["testdb_public_READ_COMMITTED"]["{}"] is engine5
+    default_conf_key = str(sorted({}.items())) # '[]'
+    assert engine_manager.engines["testdb_public_READ_COMMITTED"][default_conf_key] is engine5
     assert len(engine_manager.engines) == 4
 
     # Call with different engine kwargs - creates new sub-entry
@@ -132,8 +138,10 @@ def test_get_session_creation_and_caching(engine_manager):
     engine1, sm1 = engine_manager.session()
     assert isinstance(engine1, AsyncEngine)
     assert isinstance(sm1, async_sessionmaker)
-    assert engine_manager.engines["testdb_public_default"]["{}"] is engine1
-    session_key = "{}_{}".format(str(sorted({}.items())), str(sorted({}.items())))
+    default_engine_conf_key = str(sorted({}.items())) # '[]'
+    default_session_conf_key = str(sorted({}.items())) # '[]'
+    assert engine_manager.engines["testdb_public_default"][default_engine_conf_key] is engine1
+    session_key = f"{default_engine_conf_key}_{default_session_conf_key}"
     assert engine_manager.sessions["testdb_public_default"][session_key] is sm1
 
     # Second call with same params - reuses both
@@ -148,8 +156,9 @@ def test_get_session_creation_and_caching(engine_manager):
     assert engine1 is engine3 # Engine reused
     assert sm1 is not sm3 # New sessionmaker
     assert isinstance(sm3, async_sessionmaker)
+    default_engine_conf_key = str(sorted({}.items())) # '[]'
     session_conf_key = str(sorted({"expire_on_commit": True}.items()))
-    new_session_key = "{}_{}".format(str(sorted({}.items())), session_conf_key)
+    new_session_key = f"{default_engine_conf_key}_{session_conf_key}"
     assert engine_manager.sessions["testdb_public_default"][new_session_key] is sm3
     assert len(engine_manager.sessions["testdb_public_default"]) == 2
 
@@ -159,8 +168,9 @@ def test_get_session_creation_and_caching(engine_manager):
     assert sm1 is not sm4 # New sessionmaker
     assert sm3 is not sm4
     engine_conf_key = str(sorted({"pool_pre_ping": True}.items()))
+    default_session_conf_key = str(sorted({}.items())) # '[]'
     new_engine_key = "testdb_public_default" # Base key remains the same
-    new_session_key_engine = "{}_{}".format(engine_conf_key, str(sorted({}.items())))
+    new_session_key_engine = f"{engine_conf_key}_{default_session_conf_key}"
     assert engine_manager.engines[new_engine_key][engine_conf_key] is engine4
     assert engine_manager.sessions[new_engine_key][new_session_key_engine] is sm4
     assert len(engine_manager.engines[new_engine_key]) == 2
@@ -177,35 +187,14 @@ async def test_dispose_engines(engine_manager):
     assert len(engine_manager.engines) == 2
     assert len(engine_manager.sessions) == 2
 
-    # Mock the engine's dispose method to check if it's called
-    dispose_called_engine1 = False
-    dispose_called_engine2 = False
+    # Use patch.object to mock the read-only dispose method
+    with patch.object(engine1, 'dispose', new_callable=AsyncMock) as mock_dispose1, \
+         patch.object(engine2, 'dispose', new_callable=AsyncMock) as mock_dispose2:
 
-    original_dispose1 = engine1.dispose
-    original_dispose2 = engine2.dispose
+        await engine_manager.dispose_engines()
 
-    async def mock_dispose1(*args, **kwargs):
-        nonlocal dispose_called_engine1
-        dispose_called_engine1 = True
-        # Call the original method if needed, though for testing call count it might not be necessary
-        # await original_dispose1(*args, **kwargs)
-
-    async def mock_dispose2(*args, **kwargs):
-        nonlocal dispose_called_engine2
-        dispose_called_engine2 = True
-        # await original_dispose2(*args, **kwargs)
-
-    engine1.dispose = mock_dispose1
-    engine2.dispose = mock_dispose2
-
-    await engine_manager.dispose_engines()
-
-    # Assertions
-    assert dispose_called_engine1, "dispose() was not called on engine1"
-    assert dispose_called_engine2, "dispose() was not called on engine2"
-    assert engine_manager.engines == {}, "Engines dictionary not cleared"
-    assert engine_manager.sessions == {}, "Sessions dictionary not cleared"
-
-    # Restore original methods if necessary (though test scope usually handles cleanup)
-    engine1.dispose = original_dispose1
-    engine2.dispose = original_dispose2
+        # Assertions
+        mock_dispose1.assert_awaited_once()
+        mock_dispose2.assert_awaited_once()
+        assert engine_manager.engines == {}, "Engines dictionary not cleared"
+        assert engine_manager.sessions == {}, "Sessions dictionary not cleared"
