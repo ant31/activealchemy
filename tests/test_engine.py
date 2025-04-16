@@ -144,7 +144,10 @@ def test_get_engine_creation_and_caching(engine_manager):
 
 def test_engine_creation_failure(engine_manager):
     """Test that engine creation errors are propagated."""
-    with patch('activealchemy.engine.create_async_engine', side_effect=RuntimeError("DB connection failed")) as mock_create:
+    with patch(
+        'activealchemy.engine.create_async_engine',
+        side_effect=RuntimeError("DB connection failed")
+    ) as mock_create:
         with pytest.raises(RuntimeError, match="DB connection failed"):
             engine_manager.engine(database="faildb") # Trigger creation
         mock_create.assert_called_once() # Ensure the mock was called
