@@ -336,20 +336,40 @@ class ActiveRecord(AsyncAttrs):
     # --- Basic CRUD Operations ---
 
     @classmethod
-    async def add(cls, obj: Self, commit=False, session: AsyncSession | None = None) -> Self:
+    async def add(cls, obj: Self, commit: bool = False, session: AsyncSession | None = None) -> Self:
         """Add this instance to the database."""
-        s = await cls.get_session(session)
-        try:
-            s.add(obj)
-            if commit:
-                await s.commit()
-                await s.refresh(obj)
-        except SQLAlchemyError as e:
-            await s.rollback()
-            raise e
+        if session:
+            # Use provided session directly
+            s = session
+            try:
+                s.add(obj)
+                if commit:
+                    await s.commit()
+                    await s.refresh(obj)
+                # No close/rollback needed for externally managed session
+            except SQLAlchemyError as e:
+                # Let caller handle rollback if session is external
+                logger.error(f"Error adding {obj} with provided session {s}: {e}", exc_info=True)
+                raise e
+        else:
+            # Manage session internally
+            async with await cls.get_session() as s:
+                try:
+                    s.add(obj)
+                    if commit:
+                        await s.commit()
+                        await s.refresh(obj)
+                    else:
+                        # Flush to get ID etc. if not committing
+                        await s.flush([obj])
+                        s.expire(obj) # Expire to reflect potential DB defaults on next access
+                except SQLAlchemyError as e:
+                    # Rollback is handled by async with context manager on error
+                    logger.error(f"Error adding {obj} with internal session {s}: {e}", exc_info=True)
+                    raise e
         return obj
 
-    async def save(self, commit=False, session: AsyncSession | None = None) -> Self:
+    async def save(self, commit: bool = False, session: AsyncSession | None = None) -> Self:
         """Add this instance to the database."""
         return await self.add(self, commit, session)
 
@@ -377,35 +397,39 @@ class ActiveRecord(AsyncAttrs):
         if not objs:
             return []
 
-        s = await cls.get_session(session)
-        try:
-            logger.debug(f"Adding {len(objs)} instances of {cls.__name__} to session {s}")
-            s.add_all(objs)
-            if commit:
-                logger.debug(f"Committing session {s} after adding multiple {cls.__name__}")
-                await s.commit()
-                logger.debug(f"Session committed, refreshing {len(objs)} instances.")
-                # Refresh instances to get DB defaults, etc.
-                for obj in objs:
-                    try:
-                        await s.refresh(obj)
-                    except SQLAlchemyError as refresh_err:
-                        # Log error but continue refreshing others? Or re-raise?
-                        logger.warning(f"Failed to refresh instance {obj} after add_all commit: {refresh_err}")
-            else:
-                # Flush to get IDs etc. without committing transaction
-                logger.debug(f"Flushing session {s} for multiple {cls.__name__} (no commit)")
-                await s.flush(objs)
-                # Expire attributes
-                for obj in objs:
-                    s.expire(obj)
-
-        except SQLAlchemyError as e:
-            logger.error(f"Error in add_all for {cls.__name__}: {e}", exc_info=True)
-            logger.debug(f"Rolling back session {s}")
-            await s.rollback()
-            raise e
-        return objs
+        if session:
+            # Use provided session directly
+            s = session
+            try:
+                logger.debug(f"Adding {len(objs)} instances of {cls.__name__} to provided session {s}")
+                s.add_all(objs)
+                if commit:
+                    await s.commit()
+                    for obj in objs: await s.refresh(obj) # Refresh after commit
+                else:
+                    await s.flush(objs) # Flush if not committing
+                    for obj in objs: s.expire(obj) # Expire after flush
+            except SQLAlchemyError as e:
+                logger.error(f"Error in add_all for {cls.__name__} with provided session {s}: {e}", exc_info=True)
+                # Let caller handle rollback
+                raise e
+        else:
+            # Manage session internally
+            async with await cls.get_session() as s:
+                try:
+                    logger.debug(f"Adding {len(objs)} instances of {cls.__name__} to internal session {s}")
+                    s.add_all(objs)
+                    if commit:
+                        await s.commit()
+                        for obj in objs: await s.refresh(obj) # Refresh after commit
+                    else:
+                        await s.flush(objs) # Flush if not committing
+                        for obj in objs: s.expire(obj) # Expire after flush
+                except SQLAlchemyError as e:
+                    logger.error(f"Error in add_all for {cls.__name__} with internal session {s}: {e}", exc_info=True)
+                    # Rollback handled by async with
+                    raise e
+        return objs # Return the original list
 
     @classmethod
     async def delete(cls, obj: Self, commit: bool = True, session: AsyncSession | None = None) -> None:
@@ -420,23 +444,36 @@ class ActiveRecord(AsyncAttrs):
         Raises:
             SQLAlchemyError: If database commit fails.
         """
-        s, obj_in_session = await cls._ensure_obj_session(obj, session)
-        try:
-            logger.debug(f"Deleting instance {obj_in_session} from session {s}")
-            await s.delete(obj_in_session)
-            if commit:
-                logger.debug(f"Committing session {s} after deleting {obj_in_session}")
-                await s.commit()
-            else:
-                # Flush to send DELETE statement without committing transaction
-                logger.debug(f"Flushing session {s} for delete {obj_in_session} (no commit)")
-                await s.flush([obj_in_session])
-
-        except SQLAlchemyError as e:
-            logger.error(f"Error deleting instance {obj_in_session}: {e}", exc_info=True)
-            logger.debug(f"Rolling back session {s}")
-            await s.rollback()
-            raise e
+        if session:
+            # Use provided session
+            s, obj_in_session = await cls._ensure_obj_session(obj, session) # Ensure obj is in this session
+            try:
+                logger.debug(f"Deleting instance {obj_in_session} from provided session {s}")
+                await s.delete(obj_in_session)
+                if commit:
+                    await s.commit()
+                else:
+                    await s.flush([obj_in_session]) # Flush if not committing
+            except SQLAlchemyError as e:
+                logger.error(f"Error deleting {obj_in_session} with provided session {s}: {e}", exc_info=True)
+                # Let caller handle rollback
+                raise e
+        else:
+            # Manage session internally
+            async with await cls.get_session() as s:
+                # Ensure object is attached to *this* internal session before delete
+                obj_in_session = await s.merge(obj) # Merge ensures it's attached
+                try:
+                    logger.debug(f"Deleting instance {obj_in_session} from internal session {s}")
+                    await s.delete(obj_in_session)
+                    if commit:
+                        await s.commit()
+                    else:
+                        await s.flush([obj_in_session]) # Flush if not committing
+                except SQLAlchemyError as e:
+                    logger.error(f"Error deleting {obj_in_session} with internal session {s}: {e}", exc_info=True)
+                    # Rollback handled by async with
+                    raise e
 
     # --- Instance State Management ---
 
