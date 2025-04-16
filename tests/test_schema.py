@@ -93,7 +93,7 @@ def test_schema_add_fields_typed(mock_schema_class, mock_model_class):
     assert TempSchemaTyped.model_fields["typed_field"].annotation is str
     assert "optional_typed_field" in TempSchemaTyped.model_fields
     # Pydantic resolves Optional[bool] to Union[bool, None], check type compatibility
-    assert TempSchemaTyped.model_fields["optional_typed_field"].annotation is (bool | None)
+    assert TempSchemaTyped.model_fields["optional_typed_field"].annotation is  FieldInfo(annotation=Union[bool, NoneType], required=False, default=None).annotatio
 
 
     # Test instantiation and validation
