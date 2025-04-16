@@ -754,7 +754,10 @@ class ActiveRecord(AsyncAttrs):
                 count_scalar = result.scalar_one_or_none()
                 return count_scalar if count_scalar is not None else 0
             except SQLAlchemyError as e:
-                logger.error(f"Error executing count query for {cls.__name__} with provided session: {e}", exc_info=True)
+                logger.error(
+                    f"Error executing count query for {cls.__name__} with provided session: {e}",
+                    exc_info=True
+                )
                 raise e
         else:
             async with await cls.get_session() as s:

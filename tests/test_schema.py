@@ -1,8 +1,7 @@
-from types import NoneType # Import NoneType
+from types import NoneType  # Import NoneType
 
 import pytest
 from pydantic import ValidationError
-from pydantic.fields import FieldInfo # Keep FieldInfo import for now, might be needed elsewhere
 
 # --- Test Cases ---
 
@@ -97,7 +96,9 @@ def test_schema_add_fields_typed(mock_schema_class, mock_model_class):
     assert "optional_typed_field" in TempSchemaTyped.model_fields
     # Pydantic resolves Optional[bool] to Union[bool, None], check type compatibility
     # Compare against the expected pipe syntax type hint
-    assert TempSchemaTyped.model_fields["optional_typed_field"].annotation == (bool | NoneType) # Use == for type equality check
+    optional_field_annotation = TempSchemaTyped.model_fields["optional_typed_field"].annotation
+    expected_annotation = bool | NoneType
+    assert optional_field_annotation == expected_annotation # Use == for type equality check
 
 
     # Test instantiation and validation
