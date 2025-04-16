@@ -155,3 +155,33 @@ def test_schema_extra_fields_allowed(mock_schema_class):
 
     except ValidationError as e:
         pytest.fail(f"Schema validation failed unexpectedly with extra='allow': {e}")
+
+
+def test_schema_add_fields_existing_annotation(mock_schema_class):
+    """Test add_fields when the field name exists in annotations but only default is provided."""
+
+    # Define a temporary schema inheriting from the fixture schema
+    class TempSchemaExisting(mock_schema_class):
+        pass # Inherits fields and config
+
+    # Add the 'value' field again, but only providing a default value.
+    # The type annotation (int | None) should be picked up from the existing annotation.
+    TempSchemaExisting.add_fields(
+        value=999 # Provide only default, type should be inferred from existing annotation
+    )
+
+    # Verify the field still exists and its type annotation is correct
+    assert "value" in TempSchemaExisting.model_fields
+    assert TempSchemaExisting.model_fields["value"].annotation == (int | None)
+
+    # Create an instance - the new default should apply if 'value' isn't provided
+    instance_default = TempSchemaExisting(name="Test Existing Default")
+    assert instance_default.value == 999
+
+    # Create an instance providing the value
+    instance_override = TempSchemaExisting(name="Test Existing Override", value=111)
+    assert instance_override.value == 111
+
+    # Test type validation still works based on original annotation
+    with pytest.raises(ValidationError):
+        TempSchemaExisting(name="Bad Type Existing", value="not a number")
