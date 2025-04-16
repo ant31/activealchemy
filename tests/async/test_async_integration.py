@@ -137,6 +137,101 @@ async def test_integration_first(async_engine, aclean_tables, unique_id):
             assert first_external_session.id == c2.id # Should still find Albania
 
 
+@pytest.mark.asyncio
+async def test_integration_add_all(async_engine, aclean_tables, unique_id):
+    """Test the ActiveRecord.add_all() method."""
+    # 1. Test add_all with commit=True (default)
+    countries_to_add_commit = [
+        ACountry(name=f"Commit_{unique_id}_1", code=f"C{unique_id}1"),
+        ACountry(name=f"Commit_{unique_id}_2", code=f"C{unique_id}2"),
+    ]
+    added_countries_commit = await ACountry.add_all(countries_to_add_commit)
+
+    assert len(added_countries_commit) == 2
+    assert all(c.id is not None for c in added_countries_commit) # Should have IDs after commit
+    # Verify they are in the DB using a new session
+    async with await ACountry.get_session() as verify_session:
+        found1 = await ACountry.find_by(code=f"C{unique_id}1", session=verify_session)
+        found2 = await ACountry.find_by(code=f"C{unique_id}2", session=verify_session)
+        assert found1 is not None
+        assert found2 is not None
+        assert found1.name == f"Commit_{unique_id}_1"
+        assert found2.name == f"Commit_{unique_id}_2"
+
+    # 2. Test add_all with commit=False
+    async with await ACountry.get_session() as session_no_commit:
+        countries_to_add_no_commit = [
+            ACountry(name=f"NoCommit_{unique_id}_1", code=f"NC{unique_id}1"),
+            ACountry(name=f"NoCommit_{unique_id}_2", code=f"NC{unique_id}2"),
+        ]
+        # Add within the session context, but don't commit yet
+        added_countries_no_commit = await ACountry.add_all(
+            countries_to_add_no_commit, commit=False, session=session_no_commit
+        )
+
+        assert len(added_countries_no_commit) == 2
+        # Should have IDs after flush (which happens in add_all when commit=False)
+        assert all(c.id is not None for c in added_countries_no_commit)
+
+        # Verify they are NOT YET in the DB using a separate session
+        async with await ACountry.get_session() as verify_session_no_commit:
+            found_nc1_before = await ACountry.find_by(code=f"NC{unique_id}1", session=verify_session_no_commit)
+            found_nc2_before = await ACountry.find_by(code=f"NC{unique_id}2", session=verify_session_no_commit)
+            assert found_nc1_before is None
+            assert found_nc2_before is None
+
+        # Now commit the original session
+        await session_no_commit.commit()
+
+        # Verify they ARE NOW in the DB using a new session
+        async with await ACountry.get_session() as verify_session_after_commit:
+            found_nc1_after = await ACountry.find_by(code=f"NC{unique_id}1", session=verify_session_after_commit)
+            found_nc2_after = await ACountry.find_by(code=f"NC{unique_id}2", session=verify_session_after_commit)
+            assert found_nc1_after is not None
+            assert found_nc2_after is not None
+            assert found_nc1_after.name == f"NoCommit_{unique_id}_1"
+            assert found_nc2_after.name == f"NoCommit_{unique_id}_2"
+
+    # 3. Test add_all with explicit session (commit=True)
+    async with await ACountry.get_session() as explicit_session:
+        countries_explicit = [
+            ACountry(name=f"Explicit_{unique_id}_1", code=f"EX{unique_id}1"),
+        ]
+        await ACountry.add_all(countries_explicit, session=explicit_session) # Commit=True is default
+        # Verify within the same session (already committed)
+        found_ex1 = await ACountry.find_by(code=f"EX{unique_id}1", session=explicit_session)
+        assert found_ex1 is not None
+
+    # 4. Test add_all with empty list
+    added_empty = await ACountry.add_all([])
+    assert added_empty == []
+
+    # 5. Test add_all error handling (commit error) - Mocking needed
+    # This requires mocking the session.commit() to raise an error
+    # We'll skip the direct implementation here as it needs more mocking setup,
+    # but the principle is to ensure rollback occurs.
+
+    # 6. Test add_all error handling (flush error - e.g., constraint)
+    async with await ACountry.get_session() as session_flush_error:
+        # Create a country first to cause a unique constraint violation
+        existing_country = await ACountry(name=f"Constraint_{unique_id}", code=f"CON{unique_id}").save(commit=True, session=session_flush_error)
+
+        countries_violation = [
+            ACountry(name=f"Valid_{unique_id}", code=f"VALID{unique_id}"),
+            ACountry(name=f"Duplicate_{unique_id}", code=f"CON{unique_id}") # Duplicate code
+        ]
+        with pytest.raises(Exception): # Catch broad exception, ideally IntegrityError from SQLAlchemy/DBAPI
+             # Use the same session, commit=False to trigger flush error
+            await ACountry.add_all(countries_violation, commit=False, session=session_flush_error)
+
+        # Verify the valid one wasn't added either due to rollback within the context manager
+        # (Note: add_all itself doesn't explicitly rollback on flush error,
+        # the session context manager does if an error propagates out)
+        async with await ACountry.get_session() as verify_session_flush:
+             found_valid = await ACountry.find_by(code=f"VALID{unique_id}", session=verify_session_flush)
+             assert found_valid is None
+
+
 # @pytest.mark.asyncio
 # async def test_integration_querying(engine_and_models, unique_id):
 #     """Test complex querying functionality"""
