@@ -404,7 +404,7 @@ class ActiveRecord(AsyncAttrs):
                 return await cls._add_all_to_session(objs, s, commit)
             # Otherwise, use the session within its context manager
             else:
-                async with s: # type: ignore # s is AsyncSession when session is None
+                async with s:  # type: ignore # s is AsyncSession when session is None
                     return await cls._add_all_to_session(objs, s, commit)
         except SQLAlchemyError as e:
             # Log the error originating from _add_all_to_session or session management
@@ -415,9 +415,7 @@ class ActiveRecord(AsyncAttrs):
         # The return is handled within the try block
 
     @classmethod
-    async def _add_all_to_session(
-        cls, objs: list[Self], session: AsyncSession, commit: bool
-    ) -> Sequence[Self]:
+    async def _add_all_to_session(cls, objs: list[Self], session: AsyncSession, commit: bool) -> Sequence[Self]:
         """Helper to add objects within a specific session."""
         logger.debug(f"Adding {len(objs)} instances of {cls.__name__} to session {session}")
         session.add_all(objs)

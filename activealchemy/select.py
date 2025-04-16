@@ -40,12 +40,12 @@ class Select(SaSelect[tuple[TSelect]]):  # Inherit directly from SQLAlchemy's Se
     # to keep this class cleaner and closer to SaSelect.
 
     # This helper method will be called internally.
-    def set_context(self, cls: type[TSelect]): # Remove session from context
+    def set_context(self, cls: type[TSelect]):  # Remove session from context
         self._orm_cls = cls
         # self._session = session # Session no longer stored
         return self  # Return self for chaining
 
-    async def scalars(self, session: AsyncSession) -> ScalarResult[TSelect]: # Session is now required
+    async def scalars(self, session: AsyncSession) -> ScalarResult[TSelect]:  # Session is now required
         """
         Executes the query and returns a ScalarResult yielding ORM instances.
 
@@ -69,8 +69,8 @@ class Select(SaSelect[tuple[TSelect]]):  # Inherit directly from SQLAlchemy's Se
         # if not execution_session:
         #     raise ValueError(f"Cannot execute query for {self._orm_cls.__name__}: No session provided or available.")
 
-        if not session: # Basic check, though type hint should prevent None
-             raise ValueError(f"Cannot execute query for {self._orm_cls.__name__}: Session is required.")
+        if not session:  # Basic check, though type hint should prevent None
+            raise ValueError(f"Cannot execute query for {self._orm_cls.__name__}: Session is required.")
 
         try:
             logger.debug(f"Executing query for {self._orm_cls.__name__} with session {session}")

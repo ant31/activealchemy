@@ -49,21 +49,21 @@ class UpdateMixin(MappedAsDataclass, ActiveRecord):
     async def last_modified(cls, session: AsyncSession | None = None) -> Self | None:
         """Returns the most recently updated instance."""
         logger.debug(f"Finding last modified record for {cls.__name__}")
-        query = cls.select().order_by(cls.updated_at.desc()) # Removed session=session
+        query = cls.select().order_by(cls.updated_at.desc())  # Removed session=session
         return await cls.first(query=query, session=session)  # Use first() with the query
 
     @classmethod
     async def last_created(cls, session: AsyncSession | None = None) -> Self | None:
         """Returns the most recently created instance."""
         logger.debug(f"Finding last created record for {cls.__name__}")
-        query = cls.select().order_by(cls.created_at.desc()) # Removed session=session
+        query = cls.select().order_by(cls.created_at.desc())  # Removed session=session
         return await cls.first(query=query, session=session)
 
     @classmethod
     async def first_created(cls, session: AsyncSession | None = None) -> Self | None:
         """Returns the first created instance."""
         logger.debug(f"Finding first created record for {cls.__name__}")
-        query = cls.select().order_by(cls.created_at.asc()) # Removed session=session
+        query = cls.select().order_by(cls.created_at.asc())  # Removed session=session
         return await cls.first(query=query, session=session)
 
     @classmethod
@@ -82,7 +82,7 @@ class UpdateMixin(MappedAsDataclass, ActiveRecord):
             A sequence of model instances modified after the specified date.
         """
         if query is None:
-            query = cls.select() # Removed session=session
+            query = cls.select()  # Removed session=session
 
         logger.debug(f"Finding {cls.__name__} records modified since {date}")
         # Apply the date filter and order by modification date
