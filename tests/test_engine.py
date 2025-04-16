@@ -194,6 +194,9 @@ async def test_dispose_engines(engine_manager):
 
         # Assertions
         # Check that dispose was awaited twice (once for each engine)
-        assert mock_dispose.await_count == 2, f"Expected dispose to be called twice, but was called {mock_dispose.await_count} times."
+        assert mock_dispose.await_count == 2, (
+            f"Expected dispose to be called twice, "
+            f"but was called {mock_dispose.await_count} times."
+        )
         assert engine_manager.engines == {}, "Engines dictionary not cleared"
         assert engine_manager.sessions == {}, "Sessions dictionary not cleared"
