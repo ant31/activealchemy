@@ -55,7 +55,7 @@ class Schema[T: "ActiveRecord"](BaseModel):
                                 or just default values.
         """
         new_fields: dict[str, FieldInfo] = {}
-        current_annotations = cls.__annotations__
+        # current_annotations = cls.__annotations__ # Removed unused variable
 
         for f_name, f_def in field_definitions.items():
             f_annotation: Any = None
