@@ -385,3 +385,83 @@ async def test_instance_state_management(unique_id):
         assert instance_in_s5 not in session5
         # Accessing attributes might still work if loaded, but it's detached.
         assert expunged_instance.name == "state_test_modified_check"
+
+
+@pytest.mark.asyncio
+async def test_querying_methods(unique_id, caplog):
+    """Test querying methods: where, first, get, count."""
+    Model = SimpleModel
+    # Setup: Create some data
+    inst1 = await Model(name=f"query_A_{unique_id}").save(commit=True)
+    inst2 = await Model(name=f"query_B_{unique_id}").save(commit=True)
+    inst3 = await Model(name=f"query_C_{unique_id}").save(commit=True)
+
+    # --- Test where ---
+    # 1. Where with keyword argument
+    async with await Model.get_session() as s:
+        query_kw = Model.where(name=inst2.name)
+        results_kw = await query_kw.scalars(session=s)
+        items_kw = results_kw.all()
+        assert len(items_kw) == 1
+        assert items_kw[0].id == inst2.id
+
+    # 2. Where with positional argument
+    async with await Model.get_session() as s:
+        query_pos = Model.where(Model.name == inst3.name)
+        results_pos = await query_pos.scalars(session=s)
+        items_pos = results_pos.all()
+        assert len(items_pos) == 1
+        assert items_pos[0].id == inst3.id
+
+    # 3. Where with non-mapped attribute (should log warning)
+    caplog.clear()
+    query_warn = Model.where(non_existent_attr="value")
+    assert "Ignoring keyword argument 'non_existent_attr'" in caplog.text
+    # Check that the query still works but ignores the bad kwarg
+    async with await Model.get_session() as s:
+        # This query should return all 3 items created in this test
+        results_warn = await query_warn.scalars(session=s)
+        items_warn = results_warn.all()
+        # Filter results to only those created in this test run
+        test_ids = {inst1.id, inst2.id, inst3.id}
+        filtered_items_warn = [item for item in items_warn if item.id in test_ids]
+        assert len(filtered_items_warn) == 3
+
+    # --- Test first ---
+    # 1. First with default order (PK) - difficult to assert exact order, just check one is returned
+    first_default = await Model.first()
+    assert first_default is not None
+    assert isinstance(first_default, Model)
+
+    # 2. First when no results match
+    first_none = await Model.first(query=Model.where(Model.name == "non_existent"))
+    assert first_none is None
+
+    # --- Test get ---
+    # (get success is covered in other tests)
+    # 1. Get non-existent PK
+    non_existent_pk = uuid.uuid4()
+    get_none = await Model.get(non_existent_pk)
+    assert get_none is None
+
+    # --- Test count ---
+    # 1. Count all (may include data from other tests, filter if needed)
+    total_count = await Model.count()
+    assert total_count >= 3 # Should be at least the 3 we created
+
+    # 2. Count with a query
+    async with await Model.get_session() as s:
+        query_count = Model.where(Model.name.like(f"query_%_{unique_id}"))
+        count_filtered = await Model.count(query=query_count, session=s)
+        assert count_filtered == 3
+
+    # 3. Count with query yielding no results
+    async with await Model.get_session() as s:
+        query_count_none = Model.where(Model.name == "non_existent")
+        count_none = await Model.count(query=query_count_none, session=s)
+        assert count_none == 0
+
+    # Cleanup
+    await Model.delete(inst1)
+    await Model.delete(inst2)
+    await Model.delete(inst3)
