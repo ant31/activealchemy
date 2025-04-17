@@ -490,12 +490,19 @@ async def test_helpers_and_error_cases(unique_id, capsys, caplog):
     assert instance_transient.id_key() == expected_id_key
 
     # --- Test load error: Non-mapped class ---
-    class NonMapped: # Dummy class without SQLAlchemy mapping
+    class UnmappedActiveRecord(ActiveRecord):
+        # Inherits ActiveRecord but lacks __tablename__ or mapped columns,
+        # so SQLAlchemy won't generate a __mapper__ for it.
         pass
-    with pytest.raises(ValueError, match="Class NonMapped is not mapped"):
-        ActiveRecord.load(NonMapped, {"key": "value"}) # type: ignore
+
+    with pytest.raises(ValueError, match="Class UnmappedActiveRecord is not mapped"):
+        # Call load on the unmapped class
+        UnmappedActiveRecord.load({"key": "value"})
 
     # --- Test to_dict error: Non-mapped instance ---
+    # Define NonMapped class here for the next test section
+    class NonMapped: # Dummy class without SQLAlchemy mapping
+        pass
     non_mapped_instance = NonMapped()
     # Add __dict__ to simulate attributes if needed, though to_dict checks __mapper__
     non_mapped_instance.some_attr = 123
