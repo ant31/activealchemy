@@ -170,6 +170,33 @@ async def test_new_session_deprecated(caplog):
 
 
 @pytest.mark.asyncio
+async def test_ensure_obj_session_merges_object(unique_id):
+    """Test that _ensure_obj_session merges the object if not in the provided session."""
+    Model = SimpleModel
+    instance_name = f"ensure_merge_{unique_id}"
+    # Create and save instance (implicitly uses and closes a session)
+    instance = await Model(name=instance_name).save(commit=True)
+    assert instance.obj_session() is None # Should be detached after save's session closes
+
+    # Create a new session
+    async with await Model.get_session() as session2:
+        # Instance is not initially in session2
+        assert instance not in session2
+
+        # Mock session2.merge to check if it's called
+        with patch.object(session2, 'merge', wraps=session2.merge) as mock_merge:
+            # Call a method that uses _ensure_obj_session with the new session
+            refreshed_instance = await instance.refresh(session=session2)
+
+            # Assert merge was called with the instance
+            mock_merge.assert_awaited_once_with(instance)
+
+            # Assert the instance is now associated with session2
+            assert refreshed_instance in session2
+            assert refreshed_instance.obj_session() is session2
+
+
+@pytest.mark.asyncio
 async def test_instance_representation_and_data(unique_id):
     """Test instance representation (__str__, __repr__) and data methods (to_dict, dump_model, load, etc.)."""
     instance_name = f"repr_test_{unique_id}"
