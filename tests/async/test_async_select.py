@@ -1,6 +1,7 @@
 """
 Unit tests for the async Select class
 """
+# Note: Tests rely on unique_id for isolation instead of table cleaning.
 from unittest.mock import AsyncMock
 
 import pytest
@@ -8,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 
 @pytest.mark.asyncio
-async def test_select_init(setup_select, test_model):
+async def test_select_init(setup_select, test_model): # setup_select no longer depends on aclean_tables
     """Test Select class initialization"""
     # Test initialization (session is no longer stored in Select)
 

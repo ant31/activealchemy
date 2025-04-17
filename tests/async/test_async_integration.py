@@ -12,9 +12,9 @@ from activealchemy.demo.amodels import ACity, ACountry, AResident
 
 
 @pytest.mark.asyncio
-async def test_integration_create_retrieve_update_delete(async_engine, aclean_tables, unique_id):
+async def test_integration_create_retrieve_update_delete(async_engine, unique_id): # Removed aclean_tables
     """Test the full CRUD cycle in an integration test"""
-#    _ = await aclean_tables
+    # Note: Relies on unique_id for isolation instead of table cleaning.
     async with await ACountry.get_session() as session:
 
         user = AResident(
@@ -73,8 +73,9 @@ async def test_integration_create_retrieve_update_delete(async_engine, aclean_ta
 
 
 @pytest.mark.asyncio
-async def test_integration_first(async_engine, aclean_tables, unique_id):
+async def test_integration_first(async_engine, unique_id): # Removed aclean_tables
     """Test the ActiveRecord.first() method."""
+    # Note: Relies on unique_id for isolation instead of table cleaning.
     async with await ACountry.get_session() as session:
         # Create some data with predictable order
         # Removed sleeps - rely on transaction order/PK uniqueness
@@ -138,8 +139,9 @@ async def test_integration_first(async_engine, aclean_tables, unique_id):
 
 
 @pytest.mark.asyncio
-async def test_integration_add_all(async_engine, aclean_tables, unique_id):
+async def test_integration_add_all(async_engine, unique_id): # Removed aclean_tables
     """Test the ActiveRecord.add_all() method."""
+    # Note: Relies on unique_id for isolation instead of table cleaning.
     # 1. Test add_all with commit=True (default)
     countries_to_add_commit = [
         ACountry(name=f"Commit_{unique_id}_1", code=f"C{unique_id}1"),
