@@ -45,6 +45,9 @@ async def test_engine_management(async_engine, db_config):
         __tablename__ = "unconfigured_activerecord"
         # No set_engine called
 
+    # Explicitly remove the inherited engine for this test case
+    UnconfiguredModel.__active_engine__ = None
+
     with pytest.raises(ValueError, match="No active engine configured"):
         UnconfiguredModel.engine()
 
