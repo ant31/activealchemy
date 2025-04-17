@@ -484,8 +484,10 @@ async def test_helpers_and_error_cases(unique_id, capsys, caplog):
 
     # --- Test id_key on transient object ---
     instance_transient = Model(name=f"transient_{unique_id}")
-    # The exact transient ID is unpredictable, just check the format
-    assert instance_transient.id_key().startswith("SimpleModel:transient_")
+    # Since PKMixin provides a default_factory, the ID exists even when transient.
+    # id_key() should return the standard format.
+    expected_id_key = f"SimpleModel:{instance_transient.id}"
+    assert instance_transient.id_key() == expected_id_key
 
     # --- Test load error: Non-mapped class ---
     class NonMapped: # Dummy class without SQLAlchemy mapping
