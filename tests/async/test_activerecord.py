@@ -2,7 +2,7 @@
 Tests for activealchemy/activerecord.py
 """
 import pytest
-from sqlalchemy.orm import Mapped, mapped_column # Import Mapped and mapped_column
+from sqlalchemy.orm import Mapped, mapped_column  # Import Mapped and mapped_column
 
 from activealchemy import ActiveEngine, ActiveRecord, Base, PKMixin, PostgreSQLConfigSchema
 
