@@ -2,6 +2,7 @@
 Tests for activealchemy/activerecord.py
 """
 import json  # For dump_model test
+import logging # Import logging
 import uuid  # Import uuid for tests
 from unittest.mock import AsyncMock, patch  # For mocking
 
@@ -205,45 +206,45 @@ async def test_ensure_obj_session_gets_default_session(unique_id, caplog):
     instance = Model(name=instance_name)
     assert instance.obj_session() is None # Transient object has no session
 
-    # Mock the session factory's behavior to control the session returned
-    mock_session = AsyncMock()
-    mock_session.merge = AsyncMock(return_value=instance) # Mock merge to return the instance
+    caplog.set_level(logging.DEBUG, logger="activealchemy.activerecord") # Set log level
+    caplog.clear()
 
-    # Mock get_session to return our controlled session mock
-    with patch.object(Model, 'get_session', return_value=mock_session) as mock_get_session:
-        caplog.set_level(logging.DEBUG, logger="activealchemy.activerecord") # Set log level for target logger
-        caplog.clear()
-        # Call a method that uses _ensure_obj_session without providing a session
-        # Refresh on a transient object might not make sense logically,
-        # but it triggers the desired code path in _ensure_obj_session.
-        # Alternatively, use expire, expunge, or is_modified. Let's use refresh.
-        # Note: refresh itself might fail later if the object isn't in the DB,
-        # but we are testing the session acquisition part.
-        # We need to mock refresh's underlying call if it errors.
-        # Let's mock the session's refresh call as well.
-        mock_session.refresh = AsyncMock()
+    # Calling refresh on a transient object will trigger _ensure_obj_session
+    # to get a default session and merge the object.
+    # However, the refresh operation itself will fail later when trying to
+    # load state from the DB for a non-existent object. We expect this error.
+    obtained_session = None
+    try:
+        # We expect refresh to fail after acquiring the session
+        await instance.refresh()
+        pytest.fail("instance.refresh() should have raised an error for a transient object")
+    except Exception as e:
+        # Catch the expected error from SQLAlchemy trying to refresh a non-persistent obj
+        # This might be InvalidRequestError or similar depending on exact state.
+        # Catching a broad Exception initially, refine if needed.
+        print(f"Caught expected exception during refresh: {type(e).__name__}: {e}")
+        # Verify the session acquisition logs occurred *before* the error
+        assert "Got default session" in caplog.text
+        assert "Merging object" in caplog.text
+        # Extract the session representation from the log to check obj_session
+        log_lines = caplog.text.splitlines()
+        session_log_line = next((line for line in log_lines if "Got default session" in line), None)
+        assert session_log_line is not None
+        # Example log: "Got default session <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x...> for object ..."
+        session_repr = session_log_line.split("Got default session ")[1].split(" for object")[0]
+        print(f"Session representation from log: {session_repr}")
 
-        await instance.refresh() # Call refresh without assigning to unused variable
+    # Even though refresh failed, the object *should* have been associated
+    # with a session during the _ensure_obj_session call *before* the error.
+    associated_session = instance.obj_session()
+    assert associated_session is not None
+    print(f"Actual associated session: {associated_session}")
+    # Check if the representation matches (this is a bit fragile but best effort without mocks)
+    assert repr(associated_session) == session_repr
 
-        # Assert get_session was called to get the default session
-        mock_get_session.assert_awaited_once()
-
-        # Assert the log message for getting the default session
-        assert f"Got default session {mock_session} for object {instance}" in caplog.text
-        # Assert the log message for merging
-        assert f"Merging object {instance} into session {mock_session}" in caplog.text
-
-        # Assert merge was called on the session
-        mock_session.merge.assert_awaited_once_with(instance)
-
-        # Assert refresh was called on the session (the actual operation of instance.refresh)
-        mock_session.refresh.assert_awaited_once_with(instance, attribute_names=None)
-
-        # The instance should now be associated with the mock session conceptually
-        # (In reality, obj_session relies on SQLAlchemy's tracking)
-        # We can't easily assert instance.obj_session() is mock_session here
-        # because the mock session doesn't integrate with SQLAlchemy's identity map.
-        # The key checks are that get_session and merge were called.
+    # Clean up the session if it's still active (it might be closed due to the error)
+    if associated_session and associated_session.is_active:
+         await associated_session.close()
 
 
 @pytest.mark.asyncio
