@@ -5,7 +5,6 @@ import pytest
 
 from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
 
-
 # --- Fixtures ---
 
 # Use the async_engine fixture from tests/async/conftest.py
