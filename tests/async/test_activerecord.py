@@ -1,9 +1,9 @@
 """
 Tests for activealchemy/activerecord.py
 """
-import json # For dump_model test
+import json  # For dump_model test
 import uuid  # Import uuid for tests
-from unittest.mock import patch # For mocking
+from unittest.mock import patch  # For mocking
 
 import pytest
 from sqlalchemy.orm import Mapped, mapped_column  # Import Mapped and mapped_column
@@ -174,7 +174,6 @@ async def test_instance_representation_and_data(unique_id):
     # UUID should be converted to string
     assert dumped_data == {"id": str(instance_id), "name": instance_name}
     # Test if it's actually JSON serializable (basic check)
-    import json
     try:
         json.dumps(dumped_data)
     except TypeError:
@@ -486,7 +485,7 @@ async def test_helpers_and_error_cases(unique_id, capsys, caplog):
     # --- Test id_key on transient object ---
     instance_transient = Model(name=f"transient_{unique_id}")
     # The exact transient ID is unpredictable, just check the format
-    assert instance_transient.id_key().startswith(f"SimpleModel:transient_")
+    assert instance_transient.id_key().startswith("SimpleModel:transient_")
 
     # --- Test load error: Non-mapped class ---
     class NonMapped: # Dummy class without SQLAlchemy mapping
@@ -505,7 +504,6 @@ async def test_helpers_and_error_cases(unique_id, capsys, caplog):
 
     # --- Test dump_model error: JSON serialization ---
     # Mock to_jsonable_python to raise an error
-    from unittest.mock import patch
     instance_dump = await Model(name=f"dump_err_{unique_id}").save(commit=True)
     with patch('activealchemy.activerecord.to_jsonable_python', side_effect=TypeError("Cannot serialize")):
         caplog.clear()
