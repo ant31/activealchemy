@@ -150,6 +150,26 @@ async def test_session_factory_retry(async_engine, caplog):
 
 
 @pytest.mark.asyncio
+async def test_new_session_deprecated(caplog):
+    """Test the deprecated new_session method."""
+    Model = SimpleModel # Use an existing configured model
+    caplog.clear()
+
+    # Calling new_session should log a warning and return a session
+    async with await Model.new_session() as session:
+        assert "new_session() is deprecated. Use get_session() instead." in caplog.text
+        assert session is not None
+        assert session.is_active
+
+    # Test passing an existing session
+    caplog.clear()
+    async with await Model.get_session() as existing_session:
+        returned_session = await Model.new_session(session=existing_session)
+        assert "new_session() is deprecated. Use get_session() instead." in caplog.text
+        assert returned_session is existing_session
+
+
+@pytest.mark.asyncio
 async def test_instance_representation_and_data(unique_id):
     """Test instance representation (__str__, __repr__) and data methods (to_dict, dump_model, load, etc.)."""
     instance_name = f"repr_test_{unique_id}"
