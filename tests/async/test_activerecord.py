@@ -1,7 +1,9 @@
 """
 Tests for activealchemy/activerecord.py
 """
+import json # For dump_model test
 import uuid  # Import uuid for tests
+from unittest.mock import patch # For mocking
 
 import pytest
 from sqlalchemy.orm import Mapped, mapped_column  # Import Mapped and mapped_column
@@ -465,3 +467,87 @@ async def test_querying_methods(unique_id, caplog):
     await Model.delete(inst1)
     await Model.delete(inst2)
     await Model.delete(inst3)
+
+
+@pytest.mark.asyncio
+async def test_helpers_and_error_cases(unique_id, capsys, caplog):
+    """Test helper methods (printn, id_key) and some error paths."""
+    Model = SimpleModel
+
+    # --- Test printn ---
+    instance_print = Model(name=f"print_test_{unique_id}")
+    instance_print.printn()
+    captured = capsys.readouterr()
+    assert f"Attributes for {instance_print}:" in captured.out
+    assert "name:" in captured.out
+    assert f"print_test_{unique_id}" in captured.out
+    assert "_sa_" not in captured.out # Ensure SQLAlchemy state is excluded
+
+    # --- Test id_key on transient object ---
+    instance_transient = Model(name=f"transient_{unique_id}")
+    # The exact transient ID is unpredictable, just check the format
+    assert instance_transient.id_key().startswith(f"SimpleModel:transient_")
+
+    # --- Test load error: Non-mapped class ---
+    class NonMapped: # Dummy class without SQLAlchemy mapping
+        pass
+    with pytest.raises(ValueError, match="Class NonMapped is not mapped"):
+        ActiveRecord.load(NonMapped, {"key": "value"}) # type: ignore
+
+    # --- Test to_dict error: Non-mapped instance ---
+    non_mapped_instance = NonMapped()
+    # Add __dict__ to simulate attributes if needed, though to_dict checks __mapper__
+    non_mapped_instance.some_attr = 123
+    caplog.clear()
+    result_dict = ActiveRecord.to_dict(non_mapped_instance) # type: ignore
+    assert result_dict == {} # Should return empty dict for non-mapped
+    assert "does not seem to be mapped" in caplog.text
+
+    # --- Test dump_model error: JSON serialization ---
+    # Mock to_jsonable_python to raise an error
+    from unittest.mock import patch
+    instance_dump = await Model(name=f"dump_err_{unique_id}").save(commit=True)
+    with patch('activealchemy.activerecord.to_jsonable_python', side_effect=TypeError("Cannot serialize")):
+        caplog.clear()
+        # dump_model should catch the error and log it
+        dumped = instance_dump.dump_model()
+        # It might return the original dict or an empty one depending on error handling goal
+        # Current implementation returns the plain dict.
+        assert isinstance(dumped, dict)
+        assert "Error making dictionary for" in caplog.text
+        assert "JSON-serializable" in caplog.text
+
+    # --- Test __columns__fields__ error: NotImplementedError ---
+    # Mock a column type to raise NotImplementedError on python_type access
+    class MockColumnType:
+        @property
+        def python_type(self):
+            raise NotImplementedError("Test error")
+    mock_column = Mapped[str] # Placeholder, we mock its 'type' property
+    mock_column.type = MockColumnType()
+
+    # Temporarily patch the table columns (this is a bit intrusive)
+    original_columns = SimpleModel.__table__.columns
+    try:
+        # Create a mock column object compatible with SQLAlchemy's ColumnCollection
+        from sqlalchemy import Column
+        mock_sql_col = Column("mock_col", MockColumnType())
+        # Add the mock column to the columns list used by __columns__fields__
+        # Note: This modifies the class state, potentially affecting other tests if not careful.
+        # A cleaner way might involve creating a dedicated test model.
+        SimpleModel.__table__.columns.replace(mock_sql_col) # Replace existing column temporarily
+
+        caplog.clear()
+        fields = SimpleModel.__columns__fields__()
+        # Check that the method ran despite the error and logged a warning
+        assert "Could not determine Python type for column 'mock_col'" in caplog.text
+        # Check that other valid fields were still processed
+        assert "name" in fields
+    finally:
+        # Restore original columns to avoid side effects
+        # This might not fully reset if ColumnCollection internals changed.
+        # Consider using a dedicated model for this test if it becomes problematic.
+        SimpleModel.__table__.columns = original_columns # Attempt to restore
+
+    # Cleanup instance
+    await Model.delete(instance_dump)
