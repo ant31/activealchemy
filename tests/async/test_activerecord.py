@@ -3,7 +3,7 @@ Tests for activealchemy/activerecord.py
 """
 import pytest
 
-from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
+from activealchemy import ActiveEngine, ActiveRecord, Base, PKMixin, PostgreSQLConfigSchema
 
 # --- Fixtures ---
 
