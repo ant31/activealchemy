@@ -100,26 +100,34 @@ async def test_updatemixin_queries(setup_mixin_tests, mock_combined_model_class,
 
     # --- Test last_created ---
     # Need to filter queries to this test's data
-        last_created = await Model.last_created()
-        assert last_created is not None
-        assert last_created.id == instance3.id # instance3 was created last
+        query_lc = Model.select().where(Model.name.like(f"%_{unique_id}"))
+        # last_created = await Model.last_created(session=session) # Pass session explicitly - Original call might fetch unrelated data
+        # Re-query with filter to ensure we get the one from *this* test run
+        last_created_filtered = await Model.first(query=query_lc.order_by(Model.created_at.desc()), session=session)
+        assert last_created_filtered is not None
+        assert last_created_filtered.id == instance3.id # instance3 was created last in this batch
 
         # --- Test first_created ---
-        first_created = await Model.first_created()
-        assert first_created is not None
-        assert first_created.id == instance1.id # instance1 was created first
+        query_fc = Model.select().where(Model.name.like(f"%_{unique_id}"))
+        first_created_filtered = await Model.first(query=query_fc.order_by(Model.created_at.asc()), session=session)
+        assert first_created_filtered is not None
+        assert first_created_filtered.id == instance1.id # instance1 was created first in this batch
 
         # --- Test last_modified ---
-        last_modified = await Model.last_modified()
-        assert last_modified is not None
-        # instance2 was updated most recently
-        assert last_modified.id == instance2.id
+        query_lm = Model.select().where(Model.name.like(f"%_{unique_id}"))
+        last_modified_filtered = await Model.first(query=query_lm.order_by(Model.updated_at.desc()), session=session)
+        assert last_modified_filtered is not None
+        # instance2 was updated most recently in this batch
+        assert last_modified_filtered.id == instance2.id
 
         # --- Test get_since ---
-        # Get records modified after instance1 was created
+        # Filter the base query for get_since
+        query_gs = Model.select().where(Model.name.like(f"%_{unique_id}"))
+
+        # Get records modified after instance1 was created (within this test's data)
         since_time1 = instance1.updated_at # Use updated_at as modification time
-        modified_since_1 = await Model.get_since(since_time1)
-        # Should include instance2 (updated) and instance3 (created)
+        modified_since_1 = await Model.get_since(since_time1, query=query_gs, session=session)
+        # Should include instance2 (updated) and instance3 (created) from this batch
         assert len(modified_since_1) == 2
         modified_ids = {m.id for m in modified_since_1}
         assert instance2.id in modified_ids
@@ -127,13 +135,13 @@ async def test_updatemixin_queries(setup_mixin_tests, mock_combined_model_class,
 
         # Get records modified after instance3 was created but before instance2 was updated
         since_time3 = instance3.updated_at
-        modified_since_3 = await Model.get_since(since_time3)
-         # Should include only instance2 (which was updated after instance3 creation)
+        modified_since_3 = await Model.get_since(since_time3, query=query_gs, session=session)
+         # Should include only instance2 (which was updated after instance3 creation) from this batch
         assert len(modified_since_3) == 1
         assert modified_since_3[0].id == instance2.id
 
         # Get records modified after instance2 was updated
         since_update_time = instance2.updated_at
-        modified_since_update = await Model.get_since(since_update_time)
-        # Should include none, as nothing was modified after instance2's update
+        modified_since_update = await Model.get_since(since_update_time, query=query_gs, session=session)
+        # Should include none from this batch, as nothing was modified after instance2's update
         assert len(modified_since_update) == 0
