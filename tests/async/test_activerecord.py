@@ -525,36 +525,35 @@ async def test_helpers_and_error_cases(unique_id, capsys, caplog):
         assert "JSON-serializable" in caplog.text
 
     # --- Test __columns__fields__ error: NotImplementedError ---
-    # Mock a column type to raise NotImplementedError on python_type access
-    class MockColumnType:
-        @property
-        def python_type(self):
-            raise NotImplementedError("Test error")
-    mock_column = Mapped[str] # Placeholder, we mock its 'type' property
-    mock_column.type = MockColumnType()
+    # Create a standard column first
+    from sqlalchemy import Column, String
+    mock_sql_col = Column("mock_col", String) # Use a standard type
 
     # Temporarily patch the table columns (this is a bit intrusive)
     original_columns = SimpleModel.__table__.columns
     try:
-        # Create a mock column object compatible with SQLAlchemy's ColumnCollection
-        from sqlalchemy import Column
-        mock_sql_col = Column("mock_col", MockColumnType())
         # Add the mock column to the columns list used by __columns__fields__
-        # Note: This modifies the class state, potentially affecting other tests if not careful.
-        # A cleaner way might involve creating a dedicated test model.
-        SimpleModel.__table__.columns.replace(mock_sql_col) # Replace existing column temporarily
+        # Note: Modifying __table__.columns directly can be risky.
+        # Consider creating a dedicated test model if this causes issues.
+        # For now, let's add it temporarily.
+        temp_columns = list(original_columns) + [mock_sql_col]
+        # Create a mock ColumnCollection or similar if direct list assignment fails
+        from sqlalchemy.sql.base import ColumnCollection
+        SimpleModel.__table__.columns = ColumnCollection(columns=temp_columns)
 
-        caplog.clear()
-        fields = SimpleModel.__columns__fields__()
+        # Now, patch the python_type property on the *type object* of the added column
+        with patch.object(mock_sql_col.type, 'python_type', side_effect=NotImplementedError("Test error")):
+            caplog.clear()
+            fields = SimpleModel.__columns__fields__()
+
         # Check that the method ran despite the error and logged a warning
         assert "Could not determine Python type for column 'mock_col'" in caplog.text
         # Check that other valid fields were still processed
         assert "name" in fields
+        assert "id" in fields # Ensure original fields are still found
     finally:
         # Restore original columns to avoid side effects
-        # This might not fully reset if ColumnCollection internals changed.
-        # Consider using a dedicated model for this test if it becomes problematic.
-        SimpleModel.__table__.columns = original_columns # Attempt to restore
+        SimpleModel.__table__.columns = original_columns
 
     # Cleanup instance
     await Model.delete(instance_dump)
