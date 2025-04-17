@@ -105,17 +105,11 @@ async def setup_select(async_engine, aclean_tables, test_model):
     # Clean up
     async with async_engine.engine().begin() as conn:
         # Pass the specific model's metadata
+        # Ensure table exists (create_all is idempotent)
         await conn.run_sync(test_model.metadata.create_all)
 
-    # Add test data
-    model1 = TestModel(id="1", name="Test 1")
-    model2 = TestModel(id="2", name="Test 2")
-    model3 = TestModel(id="3", name="Test 3")
-    print("Adding test data...")
-    async with await TestModel.get_session() as session:
-        await TestModel.add_all([model1, model2, model3], commit=True, session=session)
-
-        print("Adding test data... exit")
+    # Data creation moved to individual tests
+    print("setup_select: Table ensured.")
 
 @pytest_asyncio.fixture
 async def setup_mixin_tests(async_engine, aclean_tables,
