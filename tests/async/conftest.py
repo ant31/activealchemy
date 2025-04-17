@@ -2,8 +2,7 @@ import os
 
 import pytest
 import pytest_asyncio
-import sqlalchemy.exc
-from sqlalchemy import Column, String, text
+from sqlalchemy import Column, String
 
 from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
 
