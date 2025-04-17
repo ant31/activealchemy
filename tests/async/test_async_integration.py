@@ -6,7 +6,7 @@ import asyncio
 import uuid
 
 import pytest
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError # Import necessary exceptions
+from sqlalchemy.exc import SQLAlchemyError  # Import necessary exceptions
 
 from activealchemy.demo.amodels import ACity, ACountry, AResident
 
@@ -172,8 +172,8 @@ async def test_integration_add_all(async_engine, aclean_tables, unique_id):
 
         assert len(added_countries_no_commit) == 2
         # Should have IDs after flush (which happens in add_all when commit=False)
-        assert all(c.id is not None for c in added_countries_no_commit)
-
+        ids = await asyncio.gather(*[c.awaitable_attrs.id for c in added_countries_no_commit])
+        assert all(c is not None for c in ids)
         # Verify they are NOT YET in the DB using a separate session
         async with await ACountry.get_session() as verify_session_no_commit:
             found_nc1_before = await ACountry.find_by(code=f"NC{unique_id}1", session=verify_session_no_commit)

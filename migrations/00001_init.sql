@@ -39,7 +39,8 @@ CREATE TRIGGER set_timestamp_update
   BEFORE UPDATE ON country
   FOR EACH ROW
   EXECUTE PROCEDURE trigger_set_timestamp();
-
+CREATE UNIQUE INDEX on country (name);
+CREATE UNIQUE INDEX on country (code);
 -- Openai_File: Table to store the file information of the file created by OpenAI
 CREATE TABLE city (
    id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),

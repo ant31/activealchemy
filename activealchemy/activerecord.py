@@ -1,9 +1,8 @@
 import logging
 from collections.abc import Sequence
-from typing import Any, ClassVar, Literal, Self
+from typing import Any, ClassVar, Self
 
 import sqlalchemy as sa
-import sqlalchemy.dialects.postgresql as sa_pg
 from pydantic_core import to_jsonable_python
 from sqlalchemy import FromClause, ScalarResult, func
 from sqlalchemy.exc import SQLAlchemyError
@@ -807,7 +806,6 @@ class ActiveRecord(AsyncAttrs):
                 except SQLAlchemyError as e:
                     logger.error(f"Error executing count query for {cls.__name__} with new session: {e}", exc_info=True)
                     raise e
-
 
 
 # --- Base Declarative Class ---
