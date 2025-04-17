@@ -1,7 +1,8 @@
 """
 Tests for activealchemy/activerecord.py
 """
-import uuid # Import uuid for tests
+import uuid  # Import uuid for tests
+
 import pytest
 from sqlalchemy.orm import Mapped, mapped_column  # Import Mapped and mapped_column
 
