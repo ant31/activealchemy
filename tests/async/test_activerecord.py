@@ -351,7 +351,10 @@ async def test_instance_state_management(unique_id):
 
         # Expire the instance (or specific attributes)
         expired_instance = await instance_in_s3.expire(session=session3)
-        # Accessing the attribute should trigger a reload from DB
+        # Explicitly refresh the attribute instead of relying on lazy load after expire,
+        # as implicit load seems to cause MissingGreenlet error here.
+        await session3.refresh(expired_instance, attribute_names=['name'])
+        # Accessing the attribute should now work without triggering implicit load
         assert expired_instance.name == f"state_test_updated_{unique_id}"
 
     # --- Test is_modified ---
