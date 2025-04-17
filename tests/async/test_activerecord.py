@@ -309,3 +309,74 @@ async def test_crud_delete(unique_id):
 
     # Verify deleted in a new session
     assert await SimpleModel.get(inst3.id) is None
+
+
+@pytest.mark.asyncio
+async def test_instance_state_management(unique_id):
+    """Test instance state methods: refresh, expire, expunge, is_modified."""
+    Model = SimpleModel
+    instance_name = f"state_test_{unique_id}"
+    instance = await Model(name=instance_name).save(commit=True)
+    instance_id = instance.id
+
+    # --- Test refresh ---
+    async with await Model.get_session() as session1:
+        # Modify data in DB using a different instance/session
+        async with await Model.get_session() as session2:
+            instance_alt = await Model.get(instance_id, session=session2)
+            instance_alt.name = f"state_test_updated_{unique_id}"
+            await instance_alt.save(commit=True, session=session2)
+
+        # Get the original instance in session1
+        instance_in_s1 = await Model.get(instance_id, session=session1)
+        # Before refresh, it should have the old name
+        assert instance_in_s1.name == instance_name
+
+        # Refresh the instance in session1
+        refreshed_instance = await instance_in_s1.refresh(session=session1)
+        assert refreshed_instance is instance_in_s1 # Should return the same instance
+        # Now it should have the updated name
+        assert refreshed_instance.name == f"state_test_updated_{unique_id}"
+
+    # --- Test expire ---
+    async with await Model.get_session() as session3:
+        instance_in_s3 = await Model.get(instance_id, session=session3)
+        # Ensure name is the updated one
+        assert instance_in_s3.name == f"state_test_updated_{unique_id}"
+
+        # Manually change the attribute in the object (without saving)
+        instance_in_s3.name = "state_test_expired_local"
+
+        # Expire the instance (or specific attributes)
+        expired_instance = await instance_in_s3.expire(session=session3)
+        # Accessing the attribute should trigger a reload from DB
+        assert expired_instance.name == f"state_test_updated_{unique_id}"
+
+    # --- Test is_modified ---
+    async with await Model.get_session() as session4:
+        instance_in_s4 = await Model.get(instance_id, session=session4)
+        # Initially, not modified
+        assert not await instance_in_s4.is_modified(session=session4)
+
+        # Modify the instance
+        instance_in_s4.name = "state_test_modified_check"
+        # Now it should be marked as modified (dirty)
+        assert await instance_in_s4.is_modified(session=session4)
+
+        # Commit the change
+        await session4.commit()
+        # After commit, it should no longer be modified
+        assert not await instance_in_s4.is_modified(session=session4)
+
+    # --- Test expunge ---
+    async with await Model.get_session() as session5:
+        instance_in_s5 = await Model.get(instance_id, session=session5)
+        assert instance_in_s5 in session5 # Should be in the session
+
+        # Expunge the instance
+        expunged_instance = await instance_in_s5.expunge(session=session5)
+        assert expunged_instance is instance_in_s5
+        # Now it should be detached
+        assert instance_in_s5 not in session5
+        # Accessing attributes might still work if loaded, but it's detached.
+        assert expunged_instance.name == "state_test_modified_check"
