@@ -42,14 +42,17 @@ def test_engine_initialization(minimal_config):
 
 def test_engine_initialization_invalid_config():
     """Test ActiveEngine initialization with invalid config type."""
-    with pytest.raises(TypeError, match="config must be an instance of PostgreSQLConfigSchema"):
+    # Updated regex to match the exact shortened error message
+    expected_error = r"config must be instance of BaseDBConfig subclass \(e.g., PostgreSQLConfigSchema\)"
+    with pytest.raises(TypeError, match=expected_error):
         ActiveEngine(config={"db": "wrong_type"})
 
 
 def test_prep_engine_arguments_defaults(minimal_config):
-    """Test _prep_engine_arguments applies defaults correctly."""
+    """Test engine_kwargs applies defaults correctly after initialization."""
     engine = ActiveEngine(config=minimal_config)
-    kwargs = engine._prep_engine_arguments({})
+    # Check the final engine_kwargs attribute instead of calling private method
+    kwargs = engine.engine_kwargs
     assert kwargs["poolclass"] is NullPool
     assert kwargs["echo"] is False
     assert "timeout" in kwargs["connect_args"]
@@ -77,10 +80,12 @@ def test_prep_engine_arguments_overrides(minimal_config):
 
 
 def test_prep_engine_arguments_merges_config_kwargs(minimal_config):
-    """Test _prep_engine_arguments merges kwargs from config object."""
-    minimal_config.kwargs = {"pool_recycle": 3600} # Add kwarg to config
+    """Test engine_kwargs merges create_engine_kwargs from config object."""
+    # Set create_engine_kwargs *before* initializing ActiveEngine
+    minimal_config.create_engine_kwargs = {"pool_recycle": 3600}
     engine = ActiveEngine(config=minimal_config)
     kwargs = engine.engine_kwargs
+    # The kwargs from config should be merged into the final engine_kwargs
     assert kwargs["pool_recycle"] == 3600
 
 

@@ -3,9 +3,9 @@ import os
 import pytest
 import pytest_asyncio
 import sqlalchemy
-from sqlalchemy import Column, String, text
+from sqlalchemy import Column, Integer, String, text
 
-from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
+from activealchemy import ActiveEngine, ActiveRecord, Base, PKMixin, PostgreSQLConfigSchema, SQLiteConfigSchema
 
 
 # Database configuration for tests
@@ -23,7 +23,87 @@ def db_config():
     )
 
 
-# Async fixtures
+# --- SQLite Fixtures ---
+
+@pytest.fixture(scope="session")
+def sqlite_config():
+    """Provides an in-memory SQLite configuration."""
+    return SQLiteConfigSchema(
+        db=":memory:",
+        driver="aiosqlite",
+        debug=os.environ.get("TEST_DB_DEBUG", "false").lower() == "true",
+        # connect_timeout is handled by engine prep based on config
+    )
+
+@pytest_asyncio.fixture(scope="session")
+async def async_sqlite_engine(sqlite_config):
+    """Create an async SQLite engine once per test session."""
+    print("Creating async SQLite engine (:memory:)...")
+    # No need to set params like for PG here, connect_args handled by ActiveEngine
+    engine = ActiveEngine(sqlite_config)
+    # Note: We don't set ActiveRecord.set_engine globally here,
+    # tests using SQLite will need to set it explicitly or use the engine directly.
+    yield engine
+
+    print("\nDisposing async SQLite engines...")
+    await engine.dispose_engines()
+    print("Async SQLite engines disposed.")
+
+
+from sqlalchemy.orm import Mapped, mapped_column  # Import necessary types
+
+
+class SQLiteTestModel(Base, PKMixin):
+    """Simple model specifically for SQLite tests."""
+    __tablename__ = "aa_sqlite_test_models" # Renamed to avoid SQLite prefix conflict
+    # id is inherited from PKMixin
+    # Define 'value' using Mapped/mapped_column and set init=True
+    value: Mapped[int] = mapped_column(Integer, nullable=False, init=True)
+
+
+@pytest.fixture(scope="session") # Session scope as the class definition doesn't change
+def sqlite_test_model_class():
+    """Provides the SQLiteTestModel class for tests."""
+    return SQLiteTestModel
+
+
+@pytest_asyncio.fixture(scope="function")
+async def sqlite_session_with_tables(async_sqlite_engine, sqlite_test_model_class):
+    """
+    Provides an AsyncSession with the SQLite test table created.
+    Ensures cleanup after the test.
+    """
+    # Use the session factory associated with the engine/model
+    # This ensures consistency if the factory has specific settings
+    session_factory = async_sqlite_engine.session()[1] # Get sessionmaker
+    model = sqlite_test_model_class
+    engine = async_sqlite_engine.engine() # Get the engine
+
+    # Create tables using a connection from the engine first
+    async with engine.begin() as conn:
+        print(f"\n[SQLite Setup] Creating table {model.__tablename__} using connection {conn}...")
+        await conn.run_sync(model.metadata.create_all)
+        print(f"[SQLite Setup] Table {model.__tablename__} created.")
+
+    # Now create and yield the session for the test
+    async with session_factory() as session:
+        yield session
+
+        # Teardown: Clean the table using the same session
+        print(f"\n[SQLite Teardown] Cleaning table {model.__tablename__} in session {session}...")
+        try:
+            # Use DELETE within the same session context
+            async with session.begin(): # Use transaction for cleanup
+                await session.execute(text(f'DELETE FROM "{model.__tablename__}"'))
+                print(f"[SQLite Teardown] Cleaned table {model.__tablename__}.")
+        except sqlalchemy.exc.SQLAlchemyError as e:
+            print(f"[SQLite Teardown] Error cleaning table {model.__tablename__}: {e}")
+            await session.rollback() # Ensure rollback on error during cleanup
+        # Session is closed automatically by the outer async with session_factory()
+
+
+# --- PostgreSQL Fixtures (Existing) ---
+
 @pytest_asyncio.fixture(scope="session")
 async def async_engine(db_config):
     """Create an async engine once per test session""" # Updated docstring

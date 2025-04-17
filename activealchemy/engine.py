@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-from activealchemy.config import PostgreSQLConfigSchema
+# Import the base config and specific ones
+from activealchemy.config import BaseDBConfig, PostgreSQLConfigSchema, SQLiteConfigSchema
 
 logger = logging.getLogger(__name__)
 
@@ -26,51 +27,52 @@ class ActiveEngine:
     async_sessionmaker based on a provided configuration schema.
     """
 
-    config: PostgreSQLConfigSchema
+    config: BaseDBConfig # Use the base class for type hint
     engine_kwargs: dict[str, Any]
     sessions: dict[str, dict[str, async_sessionmaker[AsyncSession]]]
     engines: dict[str, dict[str, AsyncEngine]]
 
-    def __init__(self, config: PostgreSQLConfigSchema, **kwargs: Any):
+    def __init__(self, config: BaseDBConfig, **kwargs: Any):
         """
         Initializes the ActiveEngine.
 
         Args:
-            config: The configuration object (e.g., PostgreSQLConfigSchema).
+            config: The database configuration object (subclass of BaseDBConfig).
             **kwargs: Additional keyword arguments to pass to the engine creator.
         """
-        if not isinstance(config, PostgreSQLConfigSchema):
-            raise TypeError("config must be an instance of PostgreSQLConfigSchema")
+        if not isinstance(config, BaseDBConfig):
+            # Shortened error message
+            raise TypeError("config must be instance of BaseDBConfig subclass (e.g., PostgreSQLConfigSchema)")
         self.config = config
-        logger.debug(f"Initializing ActiveEngine with config: {config}")
-        self.engine_kwargs = self._prep_engine_arguments(kwargs)
+        logger.debug(f"Initializing ActiveEngine with config type: {type(config).__name__}, details: {config}")
+        # Use config.create_engine_kwargs directly, merged with incoming kwargs
+        self.engine_kwargs = self._prep_engine_arguments(config.create_engine_kwargs or {}, incoming_kwargs=kwargs)
         self.sessions = {}
         self.engines = {}
         # Fork handling is removed as it's less relevant for pure async
 
-    def _prep_engine_arguments(self, incoming_kwargs: dict[str, Any]) -> dict[str, Any]:
+    def _prep_engine_arguments(self, config_kwargs: dict[str, Any], incoming_kwargs: dict[str, Any]) -> dict[str, Any]:
         """
         Prepare the keyword arguments for SQLAlchemy async engine creation.
 
-        Merges default arguments derived from the `self.config` object with
-        any explicitly provided `incoming_kwargs`. Handles specific adjustments
-        for async mode and the asyncpg driver.
+        Merges arguments from the config object (`config.create_engine_kwargs`)
+        with any explicitly provided `incoming_kwargs` during ActiveEngine init.
+        Handles specific adjustments based on the dialect/driver.
 
         Args:
-            incoming_kwargs: Keyword arguments passed during engine initialization.
+            config_kwargs: Keyword arguments from the config object's `create_engine_kwargs`.
+            incoming_kwargs: Keyword arguments passed directly during ActiveEngine initialization.
 
         Returns:
             A dictionary of processed arguments ready for `create_async_engine`.
         """
-        # Work on a copy to avoid modifying the original dictionary
-        kwargs = incoming_kwargs.copy()
+        # Start with config_kwargs, then update with incoming_kwargs (incoming takes precedence)
+        kwargs = config_kwargs.copy()
+        kwargs.update(incoming_kwargs)
 
-        # --- Merge Additional Config Kwargs ---
-        if self.config.kwargs:
-            logger.debug(f"Merging additional kwargs from config: {self.config.kwargs}")
-            kwargs.update(self.config.kwargs)
-
-        logger.debug(f"Preparing engine arguments from config and initial kwargs: {kwargs}")
+        # Break down log message
+        logger.debug(f"Preparing engine arguments. Base from config: {config_kwargs}")
+        logger.debug(f"Overrides: {incoming_kwargs}, Merged: {kwargs}")
 
         # Always use NullPool for async engines as connection pooling
         # is often handled by the driver (like asyncpg) itself.
@@ -88,32 +90,39 @@ class ActiveEngine:
             )
             kwargs["connect_args"] = {}
 
-        # Set default connect_timeout if not provided within connect_args
-        if "connect_timeout" not in kwargs["connect_args"]:
-            kwargs["connect_args"]["connect_timeout"] = self.config.connect_timeout
-            logger.debug(f"Setting default connect_timeout in connect_args: {kwargs['connect_args']}")
+        # --- Dialect-Specific connect_args Handling ---
+        if isinstance(self.config, PostgreSQLConfigSchema):
+            # Set default connect_timeout if not provided within connect_args for PG
+            if "connect_timeout" not in kwargs["connect_args"]:
+                kwargs["connect_args"]["connect_timeout"] = self.config.connect_timeout
+                logger.debug(f"Setting default PG connect_timeout in connect_args: {kwargs['connect_args']}")
 
-        # --- Echo SQL ---
+            # Adjust connect_timeout -> timeout within connect_args for asyncpg driver
+            if self.config.driver == "asyncpg":
+                logger.debug("Applying asyncpg-specific argument adjustments for connect_args.")
+                if "connect_timeout" in kwargs["connect_args"] and "timeout" not in kwargs["connect_args"]:
+                    timeout = kwargs["connect_args"].pop("connect_timeout")
+                    kwargs["connect_args"]["timeout"] = timeout
+                    logger.debug(
+                        "Adjusted 'connect_timeout' to 'timeout' in connect_args for asyncpg: %s",
+                        kwargs["connect_args"],
+                    )
+        elif isinstance(self.config, SQLiteConfigSchema):
+            # Set default connect_timeout if not provided within connect_args for SQLite
+            # Note: aiosqlite uses 'timeout' directly in connect_args
+            if "timeout" not in kwargs["connect_args"]:
+                 # Use the connect_timeout field from SQLiteConfigSchema
+                kwargs["connect_args"]["timeout"] = self.config.connect_timeout
+                logger.debug(f"Setting default SQLite timeout in connect_args: {kwargs['connect_args']}")
+            # Remove connect_timeout if it accidentally exists, as it's not used by aiosqlite
+            if "connect_timeout" in kwargs["connect_args"]:
+                kwargs["connect_args"].pop("connect_timeout")
+                logger.debug("Removed unused 'connect_timeout' from connect_args for SQLite.")
+
+        # --- Echo SQL (Common) ---
         if "echo" not in kwargs:
             kwargs["echo"] = self.config.debug
             logger.debug(f"Setting echo={kwargs['echo']} based on config.debug")
-
-        # Adjust connect_timeout -> timeout within connect_args for asyncpg driver
-        if self.config.driver == "asyncpg":
-            logger.debug("Applying asyncpg-specific argument adjustments for connect_args.")
-            if (
-                "connect_args" in kwargs
-                and isinstance(kwargs["connect_args"], dict)
-                and "connect_timeout" in kwargs["connect_args"]
-                # Only add 'timeout' if it's not already explicitly set
-                and "timeout" not in kwargs["connect_args"]
-            ):
-                timeout = kwargs["connect_args"].pop("connect_timeout")
-                kwargs["connect_args"]["timeout"] = timeout
-                logger.debug(
-                    "Adjusted 'connect_timeout' to 'timeout' in connect_args for asyncpg: %s",
-                    kwargs["connect_args"],
-                )
 
         logger.debug(f"Final prepared engine arguments: {kwargs}")
         return kwargs
@@ -148,12 +157,16 @@ class ActiveEngine:
 
         if engine_conf_key not in self.engines[engine_key]:
             logger.info(f"Creating new async engine for key: {engine_key} with kwargs: {kwargs}")
-            # Build DSN using potentially overridden database
-            temp_config = self.config.model_copy(update={"database": database})
-            dsn = temp_config.uri()
 
-            # Merge base kwargs, specific kwargs, and isolation level
-            final_kwargs = self.engine_kwargs.copy()
+            # Build DSN using the config object's uri method
+            # If database override is needed, handle it carefully based on dialect
+            # For now, assume the main config 'db' is used unless overridden via engine_kwargs perhaps?
+            # Let's stick to the config's URI directly for simplicity first.
+            # If database override was intended, the user should create a separate ActiveEngine or config.
+            dsn = self.config.uri() # Use the config's own URI method
+
+            # Merge base engine_kwargs (already prepared), specific kwargs, and isolation level
+            final_kwargs = self.engine_kwargs.copy() # Start with prepped args
             if isolation_level:
                 final_kwargs["isolation_level"] = isolation_level
             final_kwargs.update(kwargs)  # Apply specific overrides last

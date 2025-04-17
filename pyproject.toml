@@ -32,6 +32,7 @@ pytest-ordering = "*"
 ruff = "*"
 pylint-pydantic = "*"
 pytest-asyncio = "*"
+aiosqlite = "*" # Add driver for SQLite tests
 [tool.black]
 line-length = 120
 target-version = ['py311']
