@@ -26,7 +26,7 @@ def db_config():
 # Async fixtures
 @pytest_asyncio.fixture(scope="session")
 async def async_engine(db_config):
-    """Create an async engine for tests"""
+    """Create an async engine once per test session""" # Updated docstring
     db_config.driver = "asyncpg"
     db_config.params = {"ssl": "disable", "timeout": 5}
     print("Creating async engine...")
