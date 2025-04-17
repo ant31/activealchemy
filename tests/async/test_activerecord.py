@@ -211,6 +211,7 @@ async def test_ensure_obj_session_gets_default_session(unique_id, caplog):
 
     # Mock get_session to return our controlled session mock
     with patch.object(Model, 'get_session', return_value=mock_session) as mock_get_session:
+        caplog.set_level(logging.DEBUG, logger="activealchemy.activerecord") # Set log level for target logger
         caplog.clear()
         # Call a method that uses _ensure_obj_session without providing a session
         # Refresh on a transient object might not make sense logically,
