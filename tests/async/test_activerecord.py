@@ -151,6 +151,7 @@ async def test_session_factory_retry(async_engine, caplog):
 
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 async def test_new_session_deprecated(caplog):
     """Test the deprecated new_session method."""
     Model = SimpleModel # Use an existing configured model
