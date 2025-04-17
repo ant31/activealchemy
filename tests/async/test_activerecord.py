@@ -6,7 +6,7 @@ import uuid  # Import uuid for tests
 from unittest.mock import patch  # For mocking
 
 import pytest
-from sqlalchemy import String # Import String for MockColumnType
+from sqlalchemy import String  # Import String for MockColumnType
 from sqlalchemy.orm import Mapped, mapped_column  # Import Mapped and mapped_column
 
 from activealchemy import ActiveEngine, ActiveRecord, Base, PKMixin, PostgreSQLConfigSchema
