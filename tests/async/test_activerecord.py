@@ -11,8 +11,11 @@ from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSche
 # It sets the engine globally via ActiveRecord.set_engine
 
 # Define a simple model for testing ActiveRecord methods directly
-class SimpleModel(Base):
+# Inherit PKMixin to get an 'id' primary key
+class SimpleModel(Base, PKMixin):
     __tablename__ = "simple_models_activerecord"
+    # Add a field required by MappedAsDataclass (inherited via PKMixin)
+    name: Mapped[str] = mapped_column(init=True, default=None)
     # Inherits engine and session factory from Base/ActiveRecord
 
 
