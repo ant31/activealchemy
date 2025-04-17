@@ -129,8 +129,11 @@ async def test_instance_representation_and_data(unique_id):
 
     # 1. Test __str__ and __repr__
     expected_str = f"SimpleModel({instance_id})"
+    # Dataclass repr includes init fields
+    expected_repr = f"SimpleModel(id=UUID('{instance_id}'), name='{instance_name}')"
     assert str(instance) == expected_str
-    assert repr(instance) == expected_str
+    # Use the specific dataclass repr format for the assertion
+    assert repr(instance) == expected_repr
 
     # 2. Test id_key
     # Transient object id_key might vary, let's test after save
