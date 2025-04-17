@@ -2,9 +2,9 @@
 Tests for activealchemy/activerecord.py
 """
 import json  # For dump_model test
-import logging # Import logging
+import logging  # Import logging
 import uuid  # Import uuid for tests
-from unittest.mock import AsyncMock, patch  # For mocking
+from unittest.mock import patch  # For mocking
 
 import pytest
 from sqlalchemy import String  # Import String for MockColumnType
