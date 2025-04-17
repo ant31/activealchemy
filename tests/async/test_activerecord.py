@@ -204,11 +204,12 @@ async def test_instance_representation_and_data(unique_id):
 @pytest.mark.asyncio
 async def test_crud_add_save(unique_id):
     """Test ActiveRecord.add() and instance.save() methods."""
-    # 1. Save with commit=True (default behavior via save -> add)
+    # 1. Save with commit=True (using internal session)
     instance1_name = f"crud_add1_{unique_id}"
-    instance1 = SimpleModel(name=instance1_name)
-    await instance1.save() # commit=True is default for save->add
-    instance1_id = instance1.id
+    instance_to_save = SimpleModel(name=instance1_name)
+    # Call save with commit=True and use the returned instance
+    instance1 = await instance_to_save.save(commit=True)
+    instance1_id = instance1.id # Now ID should be loaded
     # Verify it's in the DB
     found1 = await SimpleModel.get(instance1_id)
     assert found1 is not None
