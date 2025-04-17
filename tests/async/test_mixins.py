@@ -83,22 +83,17 @@ async def test_updatemixin_queries(setup_mixin_tests, mock_combined_model_class)
     Model = mock_combined_model_class
     async with await mock_combined_model_class.get_session() as session:
     # Create instances with varying timestamps
+    # Removed sleeps - rely on transaction commit order for timestamps
         instance1 = await Model(name="q_old").save(commit=True, session=session)
-        await asyncio.sleep(0.05)
-        # time_after_1 = datetime.now(UTC) # Unused
-        await asyncio.sleep(0.05)
         instance2 = await Model(name="q_mid").save(commit=True, session=session)
-        await asyncio.sleep(0.05)
         instance3 = await Model(name="q_new").save(commit=True, session=session)
-        await asyncio.sleep(0.05)
-        # time_after_3 = datetime.now(UTC) # Unused
-        await asyncio.sleep(0.05)
 
-        # Update instance2
+        # Update instance2 - ensure this happens distinctly after creation
+        # A small sleep might still be needed if DB timestamp resolution is low,
+        # but let's try without first. If tests become flaky, add a minimal sleep back here.
+        # await asyncio.sleep(0.01) # Potential minimal sleep if needed
         instance2.name = "q_mid_updated"
         instance2 = await instance2.save(commit=True, session=session)
-        await asyncio.sleep(0.05)
-    # time_after_update = datetime.now(UTC) # Unused
 
 
     # --- Test last_created ---

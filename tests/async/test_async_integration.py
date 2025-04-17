@@ -77,12 +77,11 @@ async def test_integration_first(async_engine, aclean_tables, unique_id):
     """Test the ActiveRecord.first() method."""
     async with await ACountry.get_session() as session:
         # Create some data with predictable order
+        # Removed sleeps - rely on transaction order/PK uniqueness
         c1 = await ACountry(name="Zimbabwe", code="ZW").save(commit=True, session=session)
         # Should be last alphabetically
-        await asyncio.sleep(0.01) # Ensure different timestamps if PKs were similar
         c2 = await ACountry(name="Albania", code="AL").save(commit=True, session=session)
         # Should be first alphabetically
-        await asyncio.sleep(0.01)
         c3 = await ACountry(name="Canada", code="CA").save(commit=True, session=session)
 
         # 1. Test first() without arguments (default order by PK)
