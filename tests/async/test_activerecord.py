@@ -199,3 +199,107 @@ async def test_instance_representation_and_data(unique_id):
     # Test load with non-dict
     with pytest.raises(ValueError, match="Input 'data' must be a dictionary"):
         SimpleModel.load("not a dict") # type: ignore
+
+
+@pytest.mark.asyncio
+async def test_crud_operations(unique_id):
+    """Test basic CRUD operations: add, save, add_all, delete."""
+    # --- Test add/save ---
+    # 1. Save with commit=True (default behavior via save -> add)
+    instance1_name = f"crud_add1_{unique_id}"
+    instance1 = SimpleModel(name=instance1_name)
+    await instance1.save() # commit=True is default for save->add
+    instance1_id = instance1.id
+    # Verify it's in the DB
+    found1 = await SimpleModel.get(instance1_id)
+    assert found1 is not None
+    assert found1.name == instance1_name
+
+    # 2. Add with commit=False
+    instance2_name = f"crud_add2_{unique_id}"
+    instance2 = SimpleModel(name=instance2_name)
+    async with await SimpleModel.get_session() as session_no_commit:
+        # Use add directly with commit=False
+        added_instance2 = await SimpleModel.add(instance2, commit=False, session=session_no_commit)
+        assert added_instance2 is instance2
+        assert added_instance2.id is not None # ID should be assigned after flush
+        instance2_id = added_instance2.id
+
+        # Verify it's NOT YET in the DB via another session
+        found2_before_commit = await SimpleModel.get(instance2_id)
+        assert found2_before_commit is None
+
+        # Commit the session
+        await session_no_commit.commit()
+
+    # Verify it IS NOW in the DB
+    found2_after_commit = await SimpleModel.get(instance2_id)
+    assert found2_after_commit is not None
+    assert found2_after_commit.name == instance2_name
+
+    # 3. Add with provided session (commit=True)
+    instance3_name = f"crud_add3_{unique_id}"
+    instance3 = SimpleModel(name=instance3_name)
+    async with await SimpleModel.get_session() as provided_session:
+        added_instance3 = await SimpleModel.add(instance3, commit=True, session=provided_session)
+        instance3_id = added_instance3.id
+        # Verify within the same session (already committed)
+        found3_in_session = await SimpleModel.get(instance3_id, session=provided_session)
+        assert found3_in_session is not None
+
+    # Verify in a new session
+    found3_new_session = await SimpleModel.get(instance3_id)
+    assert found3_new_session is not None
+
+    # --- Test add_all ---
+    # (add_all tests are already covered in test_async_integration.py,
+    # but we can add a simple case here for activerecord coverage)
+    instance4_name = f"crud_add_all1_{unique_id}"
+    instance5_name = f"crud_add_all2_{unique_id}"
+    instances_to_add = [
+        SimpleModel(name=instance4_name),
+        SimpleModel(name=instance5_name)
+    ]
+    added_all_instances = await SimpleModel.add_all(instances_to_add) # commit=True default
+    assert len(added_all_instances) == 2
+    instance4_id = added_all_instances[0].id
+    instance5_id = added_all_instances[1].id
+    assert await SimpleModel.get(instance4_id) is not None
+    assert await SimpleModel.get(instance5_id) is not None
+
+    # --- Test delete ---
+    # 1. Delete with commit=True (default)
+    await SimpleModel.delete(found1) # found1 was retrieved earlier
+    assert await SimpleModel.get(instance1_id) is None
+
+    # 2. Delete with commit=False
+    async with await SimpleModel.get_session() as session_del_no_commit:
+        # Retrieve instance 2 again within this session context
+        instance2_to_delete = await SimpleModel.get(instance2_id, session=session_del_no_commit)
+        assert instance2_to_delete is not None
+        await SimpleModel.delete(instance2_to_delete, commit=False, session=session_del_no_commit)
+
+        # Verify it's STILL in the DB via another session
+        found2_before_del_commit = await SimpleModel.get(instance2_id)
+        assert found2_before_del_commit is not None
+
+        # Commit the delete
+        await session_del_no_commit.commit()
+
+    # Verify it's NOW deleted
+    assert await SimpleModel.get(instance2_id) is None
+
+    # 3. Delete with provided session (commit=True)
+    async with await SimpleModel.get_session() as provided_del_session:
+        instance3_to_delete = await SimpleModel.get(instance3_id, session=provided_del_session)
+        assert instance3_to_delete is not None
+        await SimpleModel.delete(instance3_to_delete, commit=True, session=provided_del_session)
+        # Verify deleted within the same session
+        assert await SimpleModel.get(instance3_id, session=provided_del_session) is None
+
+    # Verify deleted in a new session
+    assert await SimpleModel.get(instance3_id) is None
+
+    # Clean up remaining instances from add_all
+    await SimpleModel.delete(await SimpleModel.get(instance4_id))
+    await SimpleModel.delete(await SimpleModel.get(instance5_id))
