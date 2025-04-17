@@ -31,9 +31,9 @@ async def test_select_scalars(async_engine, setup_select, test_model, unique_id)
     TestModel = test_model
     # Create unique data for this test
     async with await TestModel.get_session() as session:
-        m1 = await TestModel(id=f"s_{unique_id}_1", name=f"Scalar 1 {unique_id}").save(commit=False, session=session)
-        m2 = await TestModel(id=f"s_{unique_id}_2", name=f"Scalar 2 {unique_id}").save(commit=False, session=session)
-        m3 = await TestModel(id=f"s_{unique_id}_3", name=f"Scalar 3 {unique_id}").save(commit=False, session=session)
+        await TestModel(id=f"s_{unique_id}_1", name=f"Scalar 1 {unique_id}").save(commit=False, session=session)
+        await TestModel(id=f"s_{unique_id}_2", name=f"Scalar 2 {unique_id}").save(commit=False, session=session)
+        await TestModel(id=f"s_{unique_id}_3", name=f"Scalar 3 {unique_id}").save(commit=False, session=session)
         await session.commit()
 
         # Session must be provided to scalars()
@@ -47,8 +47,12 @@ async def test_select_scalars(async_engine, setup_select, test_model, unique_id)
     # Test calling via ActiveRecord.all (which handles session internally)
     # Need to create data again or use a different approach if relying on .all() without filter
     async with await TestModel.get_session() as session_all:
-        m4 = await TestModel(id=f"sa_{unique_id}_1", name=f"Scalar All 1 {unique_id}").save(commit=True, session=session_all)
-        m5 = await TestModel(id=f"sa_{unique_id}_2", name=f"Scalar All 2 {unique_id}").save(commit=True, session=session_all)
+        await TestModel(id=f"sa_{unique_id}_1", name=f"Scalar All 1 {unique_id}").save(
+            commit=True, session=session_all
+        )
+        await TestModel(id=f"sa_{unique_id}_2", name=f"Scalar All 2 {unique_id}").save(
+            commit=True, session=session_all
+        )
 
         # Use a query with .all() to isolate data
         query_all = TestModel.select().where(TestModel.id.like(f"sa_{unique_id}%"))
@@ -65,9 +69,9 @@ async def test_select_where(setup_select, test_model, unique_id):
     target_name = f"Where Target {unique_id}"
     async with await TestModel.get_session() as session:
         # Create unique data
-        m1 = await TestModel(id=f"w_{unique_id}_1", name=f"Where Other {unique_id}").save(commit=False, session=session)
-        m2 = await TestModel(id=f"w_{unique_id}_2", name=target_name).save(commit=False, session=session)
-        m3 = await TestModel(id=f"w_{unique_id}_3", name=f"Where Else {unique_id}").save(commit=False, session=session)
+        await TestModel(id=f"w_{unique_id}_1", name=f"Where Other {unique_id}").save(commit=False, session=session)
+        await TestModel(id=f"w_{unique_id}_2", name=target_name).save(commit=False, session=session)
+        await TestModel(id=f"w_{unique_id}_3", name=f"Where Else {unique_id}").save(commit=False, session=session)
         await session.commit()
 
         select = TestModel.select().where(TestModel.name == target_name) # No session in select()
@@ -87,13 +91,17 @@ async def test_select_order_by(setup_select, test_model, unique_id):
     name3 = f"Order B {unique_id}"
     async with await TestModel.get_session() as session:
         # Create unique data
-        m1 = await TestModel(id=f"o_{unique_id}_1", name=name1).save(commit=False, session=session) # C
-        m2 = await TestModel(id=f"o_{unique_id}_2", name=name2).save(commit=False, session=session) # A
-        m3 = await TestModel(id=f"o_{unique_id}_3", name=name3).save(commit=False, session=session) # B
+        await TestModel(id=f"o_{unique_id}_1", name=name1).save(commit=False, session=session) # C
+        await TestModel(id=f"o_{unique_id}_2", name=name2).save(commit=False, session=session) # A
+        await TestModel(id=f"o_{unique_id}_3", name=name3).save(commit=False, session=session) # B
         await session.commit()
 
         # Filter for this test's data
-        select = TestModel.select().where(TestModel.id.like(f"o_{unique_id}%")).order_by(TestModel.name.desc()) # No session in select()
+        select = (
+            TestModel.select()
+            .where(TestModel.id.like(f"o_{unique_id}%"))
+            .order_by(TestModel.name.desc()) # No session in select()
+        )
         result = await select.scalars(session=session) # Pass session here
         items = list(result)
         assert len(items) == 3
@@ -101,7 +109,11 @@ async def test_select_order_by(setup_select, test_model, unique_id):
         assert items[1].name == name3 # B
         assert items[2].name == name2 # A
 
-        select_asc = TestModel.select().where(TestModel.id.like(f"o_{unique_id}%")).order_by(TestModel.name.asc())
+        select_asc = (
+            TestModel.select()
+            .where(TestModel.id.like(f"o_{unique_id}%"))
+            .order_by(TestModel.name.asc())
+        )
         result_asc = await select_asc.scalars(session=session)
         items_asc = list(result_asc)
         assert len(items_asc) == 3
@@ -116,13 +128,18 @@ async def test_select_limit(setup_select, test_model, unique_id):
     TestModel = test_model
     async with await TestModel.get_session() as session:
         # Create unique data
-        m1 = await TestModel(id=f"l_{unique_id}_1", name=f"Limit 1 {unique_id}").save(commit=False, session=session)
-        m2 = await TestModel(id=f"l_{unique_id}_2", name=f"Limit 2 {unique_id}").save(commit=False, session=session)
-        m3 = await TestModel(id=f"l_{unique_id}_3", name=f"Limit 3 {unique_id}").save(commit=False, session=session)
+        await TestModel(id=f"l_{unique_id}_1", name=f"Limit 1 {unique_id}").save(commit=False, session=session)
+        await TestModel(id=f"l_{unique_id}_2", name=f"Limit 2 {unique_id}").save(commit=False, session=session)
+        await TestModel(id=f"l_{unique_id}_3", name=f"Limit 3 {unique_id}").save(commit=False, session=session)
         await session.commit()
 
         # Filter for this test's data and apply limit
-        select = TestModel.select().where(TestModel.id.like(f"l_{unique_id}%")).order_by(TestModel.name).limit(2) # No session in select()
+        select = (
+            TestModel.select()
+            .where(TestModel.id.like(f"l_{unique_id}%"))
+            .order_by(TestModel.name)
+            .limit(2) # No session in select()
+        )
         result = await select.scalars(session=session) # Pass session here
         items = list(result)
         assert len(items) == 2
