@@ -101,7 +101,8 @@ async def test_updatemixin_queries(setup_mixin_tests, mock_combined_model_class,
     # --- Test last_created ---
     # Need to filter queries to this test's data
         query_lc = Model.select().where(Model.name.like(f"%_{unique_id}"))
-        # last_created = await Model.last_created(session=session) # Pass session explicitly - Original call might fetch unrelated data
+        # last_created = await Model.last_created(session=session) # Pass session explicitly
+        # Original call might fetch unrelated data from other tests
         # Re-query with filter to ensure we get the one from *this* test run
         last_created_filtered = await Model.first(query=query_lc.order_by(Model.created_at.desc()), session=session)
         assert last_created_filtered is not None
