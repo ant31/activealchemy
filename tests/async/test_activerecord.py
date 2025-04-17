@@ -321,15 +321,17 @@ async def test_instance_state_management(unique_id):
 
     # --- Test refresh ---
     async with await Model.get_session() as session1:
+        # Load the instance into session1 FIRST
+        instance_in_s1 = await Model.get(instance_id, session=session1)
+        assert instance_in_s1.name == instance_name # Check initial state
+
         # Modify data in DB using a different instance/session
         async with await Model.get_session() as session2:
             instance_alt = await Model.get(instance_id, session=session2)
             instance_alt.name = f"state_test_updated_{unique_id}"
             await instance_alt.save(commit=True, session=session2)
 
-        # Get the original instance in session1
-        instance_in_s1 = await Model.get(instance_id, session=session1)
-        # Before refresh, it should have the old name
+        # Verify instance in session1 STILL has the old name (due to session cache)
         assert instance_in_s1.name == instance_name
 
         # Refresh the instance in session1
