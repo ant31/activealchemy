@@ -330,10 +330,11 @@ async def test_crud_add_save(unique_id):
     # Call save with commit=True and use the returned instance
     instance1 = await instance_to_save.save(commit=True)
     instance1_id = instance1.id # Now ID should be loaded
-    # Verify it's in the DB
-    found1 = await SimpleModel.get(instance1_id)
-    assert found1 is not None
-    assert found1.name == instance1_name
+    # Verify it's in the DB using an explicit session
+    async with await SimpleModel.get_session() as verify_session1:
+        found1 = await SimpleModel.get(instance1_id, session=verify_session1)
+        assert found1 is not None
+        assert found1.name == instance1_name
 
     # 2. Add with commit=False
     instance2_name = f"crud_add2_{unique_id}"
@@ -345,17 +346,19 @@ async def test_crud_add_save(unique_id):
         assert added_instance2.id is not None # ID should be assigned after flush
         instance2_id = added_instance2.id
 
-        # Verify it's NOT YET in the DB via another session
-        found2_before_commit = await SimpleModel.get(instance2_id)
-        assert found2_before_commit is None
+        # Verify it's NOT YET in the DB via another explicit session
+        async with await SimpleModel.get_session() as verify_session2_before:
+            found2_before_commit = await SimpleModel.get(instance2_id, session=verify_session2_before)
+            assert found2_before_commit is None
 
         # Commit the session
         await session_no_commit.commit()
 
-    # Verify it IS NOW in the DB
-    found2_after_commit = await SimpleModel.get(instance2_id)
-    assert found2_after_commit is not None
-    assert found2_after_commit.name == instance2_name
+    # Verify it IS NOW in the DB using another explicit session
+    async with await SimpleModel.get_session() as verify_session2_after:
+        found2_after_commit = await SimpleModel.get(instance2_id, session=verify_session2_after)
+        assert found2_after_commit is not None
+        assert found2_after_commit.name == instance2_name
 
     # 3. Add with provided session (commit=True)
     instance3_name = f"crud_add3_{unique_id}"
@@ -367,9 +370,10 @@ async def test_crud_add_save(unique_id):
         found3_in_session = await SimpleModel.get(instance3_id, session=provided_session)
         assert found3_in_session is not None
 
-    # Verify in a new session
-    found3_new_session = await SimpleModel.get(instance3_id)
-    assert found3_new_session is not None
+    # Verify in a new explicit session
+    async with await SimpleModel.get_session() as verify_session3_new:
+        found3_new_session = await SimpleModel.get(instance3_id, session=verify_session3_new)
+        assert found3_new_session is not None
 
 
 @pytest.mark.asyncio
