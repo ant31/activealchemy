@@ -197,6 +197,55 @@ async def test_ensure_obj_session_merges_object(unique_id):
 
 
 @pytest.mark.asyncio
+async def test_ensure_obj_session_gets_default_session(unique_id, caplog):
+    """Test _ensure_obj_session gets default session for transient/detached obj."""
+    Model = SimpleModel
+    instance_name = f"ensure_default_session_{unique_id}"
+    # Create a transient instance (not saved)
+    instance = Model(name=instance_name)
+    assert instance.obj_session() is None # Transient object has no session
+
+    # Mock the session factory's behavior to control the session returned
+    mock_session = AsyncMock()
+    mock_session.merge = AsyncMock(return_value=instance) # Mock merge to return the instance
+
+    # Mock get_session to return our controlled session mock
+    with patch.object(Model, 'get_session', return_value=mock_session) as mock_get_session:
+        caplog.clear()
+        # Call a method that uses _ensure_obj_session without providing a session
+        # Refresh on a transient object might not make sense logically,
+        # but it triggers the desired code path in _ensure_obj_session.
+        # Alternatively, use expire, expunge, or is_modified. Let's use refresh.
+        # Note: refresh itself might fail later if the object isn't in the DB,
+        # but we are testing the session acquisition part.
+        # We need to mock refresh's underlying call if it errors.
+        # Let's mock the session's refresh call as well.
+        mock_session.refresh = AsyncMock()
+
+        refreshed_instance = await instance.refresh()
+
+        # Assert get_session was called to get the default session
+        mock_get_session.assert_awaited_once()
+
+        # Assert the log message for getting the default session
+        assert f"Got default session {mock_session} for object {instance}" in caplog.text
+        # Assert the log message for merging
+        assert f"Merging object {instance} into session {mock_session}" in caplog.text
+
+        # Assert merge was called on the session
+        mock_session.merge.assert_awaited_once_with(instance)
+
+        # Assert refresh was called on the session (the actual operation of instance.refresh)
+        mock_session.refresh.assert_awaited_once_with(instance, attribute_names=None)
+
+        # The instance should now be associated with the mock session conceptually
+        # (In reality, obj_session relies on SQLAlchemy's tracking)
+        # We can't easily assert instance.obj_session() is mock_session here
+        # because the mock session doesn't integrate with SQLAlchemy's identity map.
+        # The key checks are that get_session and merge were called.
+
+
+@pytest.mark.asyncio
 async def test_instance_representation_and_data(unique_id):
     """Test instance representation (__str__, __repr__) and data methods (to_dict, dump_model, load, etc.)."""
     instance_name = f"repr_test_{unique_id}"
