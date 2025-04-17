@@ -3,7 +3,7 @@ Tests for activealchemy/activerecord.py
 """
 import json  # For dump_model test
 import uuid  # Import uuid for tests
-from unittest.mock import patch  # For mocking
+from unittest.mock import AsyncMock, patch  # For mocking
 
 import pytest
 from sqlalchemy import String  # Import String for MockColumnType
@@ -222,7 +222,7 @@ async def test_ensure_obj_session_gets_default_session(unique_id, caplog):
         # Let's mock the session's refresh call as well.
         mock_session.refresh = AsyncMock()
 
-        refreshed_instance = await instance.refresh()
+        await instance.refresh() # Call refresh without assigning to unused variable
 
         # Assert get_session was called to get the default session
         mock_get_session.assert_awaited_once()
