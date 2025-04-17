@@ -30,7 +30,7 @@ async def test_integration_create_retrieve_update_delete(async_engine, unique_id
         assert retrieved_user.name == f"intuser_{unique_id}"
         assert retrieved_user.email == f"int_{unique_id}@example.com"
 
-        c1 = await ACountry(name="country1", code="c1").save(commit=True, session=session)
+        c1 = await ACountry(name="country1", code=f"c1_{unique_id}").save(commit=True, session=session)
         # await c1.refresh_me()
         await session.refresh(c1)
         assert c1.id != uuid.UUID("00000000-0000-0000-0000-000000000000")
@@ -49,13 +49,14 @@ async def test_integration_create_retrieve_update_delete(async_engine, unique_id
         assert all(city.country_id == c1.id for city in cities)
 
         # Update the user
-        c1_new.code = "c2"
+        code = f"c2_{unique_id}"
+        c1_new.code = code
         c1_new = await c1_new.save(commit=True, session=session)
 
 #     # verify update
         c1_new = await ACountry.find(c1.id, session=session)
         assert c1_new is not None
-        assert c1_new.code == "c2"
+        assert c1_new.code == code
 
         # Pass session to scalars()
         new_cities_result = await ACity.where(ACity.country_id == c1.id).scalars(session=session)
@@ -79,11 +80,11 @@ async def test_integration_first(async_engine, unique_id): # Removed aclean_tabl
     async with await ACountry.get_session() as session:
         # Create some data with predictable order
         # Removed sleeps - rely on transaction order/PK uniqueness
-        c1 = await ACountry(name="Zimbabwe", code="ZW").save(commit=True, session=session)
+        c1 = await ACountry(name=f"Zimbabwe_{unique_id}", code=f"ZW_{unique_id}").save(commit=True, session=session)
         # Should be last alphabetically
-        c2 = await ACountry(name="Albania", code="AL").save(commit=True, session=session)
+        c2 = await ACountry(name=f"Albania_{unique_id}", code=f"AL_{unique_id}").save(commit=True, session=session)
         # Should be first alphabetically
-        c3 = await ACountry(name="Canada", code="CA").save(commit=True, session=session)
+        c3 = await ACountry(name=f"Canada_{unique_id}", code=f"CA_{unique_id}").save(commit=True, session=session)
 
         # 1. Test first() without arguments (default order by PK)
         # The actual order depends on UUID generation, so we can't reliably assert which one is first by PK.
@@ -96,20 +97,20 @@ async def test_integration_first(async_engine, unique_id): # Removed aclean_tabl
         first_by_name_asc = await ACountry.first(order_by=ACountry.name.asc(), session=session)
         assert first_by_name_asc is not None
         assert first_by_name_asc.id == c2.id
-        assert first_by_name_asc.name == "Albania"
+        assert first_by_name_asc.name == f"Albania_{unique_id}"
 
         # 3. Test first() with explicit order_by (name descending)
         first_by_name_desc = await ACountry.first(order_by=ACountry.name.desc(), session=session)
         assert first_by_name_desc is not None
         assert first_by_name_desc.id == c1.id
-        assert first_by_name_desc.name == "Zimbabwe"
+        assert first_by_name_desc.name == f"Zimbabwe_{unique_id}"
 
         # 4. Test first() with a query (where clause)
-        query = ACountry.select().where(ACountry.code == "CA")
+        query = ACountry.select().where(ACountry.code == f"CA_{unique_id}")
         first_canada = await ACountry.first(query=query, session=session)
         assert first_canada is not None
         assert first_canada.id == c3.id
-        assert first_canada.code == "CA"
+        assert first_canada.code == f"CA_{unique_id}"
 
         # 5. Test first() with a query and order_by
         query_ordered = ACountry.select().where(ACountry.name.like('%a%')).order_by(ACountry.name.asc())

@@ -84,7 +84,7 @@ def mock_combined_model_class():
 
 
 # --- Other Utility fixtures ---
-@pytest.fixture
+@pytest.fixture(scope="function")
 def unique_id():
     """Generate a unique ID for test data"""
     return str(uuid.uuid4())

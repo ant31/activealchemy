@@ -2,7 +2,8 @@ import os
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import Column, String
+import sqlalchemy
+from sqlalchemy import Column, String, text
 
 from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
 
@@ -80,3 +81,44 @@ async def setup_mixin_tests(async_engine, # Removed aclean_tables
         for model in models:
             print(f"Creating table: {model.__tablename__}")
             await conn.run_sync(model.metadata.create_all)
+
+
+@pytest_asyncio.fixture(scope="session",autouse=True)
+async def aclean_tables(async_engine):
+    """Clean all tables before and after tests"""
+    tables = ["test_select_models", "mock_pk_models", "mock_update_models",
+              "mock_combined_models", "resident_city", "resident", "city","country", ]
+    print("aclean")
+    # Use the engine manager provided by the fixture
+    # Get a session using the globally set engine manager
+    async with await ActiveRecord.get_session() as session:
+        print("Cleaning tables...")
+        async with session.begin(): # Use a transaction for cleanup
+            print("Cleaning tables in transaction...")
+            for table in tables: # Truncate in reverse dependency order
+                print(f"Truncating table: {table}") # Debug print
+                # Suppress errors if table doesn't exist
+                try:
+                    await session.execute(text(f'DELETE FROM "{table}"'))
+                    print(f"Truncated table: {table}")
+                except sqlalchemy.exc.SQLAlchemyError as e:
+                    # This might happen if the table doesn't exist yet on the first run
+                    print(f"Error deleting from table {table}: {e}")
+        # No explicit commit needed with session.begin()
+
+    yield # Let the test run
+
+    # Add cleanup *after* the test as well to ensure clean state
+    print("aclean (post-yield)")
+    async with await ActiveRecord.get_session() as session:
+        print("Cleaning tables post-yield...")
+        async with session.begin():
+            print("Cleaning tables post-yield in transaction...")
+            # Iterate in reverse to handle potential foreign key dependencies if any exist
+            for table in reversed(tables):
+                print(f"Deleting from table post-yield: {table}")
+                try:
+                    await session.execute(text(f'DELETE FROM "{table}"'))
+                    print(f"Deleted from table post-yield: {table}")
+                except sqlalchemy.exc.SQLAlchemyError as e:
+                    print(f"Error deleting post-yield from table {table}: {e}")
