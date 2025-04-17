@@ -6,6 +6,7 @@ import uuid  # Import uuid for tests
 from unittest.mock import patch  # For mocking
 
 import pytest
+from sqlalchemy import String # Import String for MockColumnType
 from sqlalchemy.orm import Mapped, mapped_column  # Import Mapped and mapped_column
 
 from activealchemy import ActiveEngine, ActiveRecord, Base, PKMixin, PostgreSQLConfigSchema
@@ -524,36 +525,34 @@ async def test_helpers_and_error_cases(unique_id, capsys, caplog):
         assert "Error making dictionary for" in caplog.text
         assert "JSON-serializable" in caplog.text
 
-    # --- Test __columns__fields__ error: NotImplementedError ---
-    # Create a standard column first
-    from sqlalchemy import Column, String
-    mock_sql_col = Column("mock_col", String) # Use a standard type
-
-    # Temporarily patch the table columns (this is a bit intrusive)
-    original_columns = SimpleModel.__table__.columns
-    try:
-        # Add the mock column to the columns list used by __columns__fields__
-        # Note: Modifying __table__.columns directly can be risky.
-        # Consider creating a dedicated test model if this causes issues.
-        # For now, let's add it temporarily.
-        temp_columns = list(original_columns) + [mock_sql_col]
-        # Create a mock ColumnCollection or similar if direct list assignment fails
-        from sqlalchemy.sql.base import ColumnCollection
-        SimpleModel.__table__.columns = ColumnCollection(columns=temp_columns)
-
-        # Now, patch the python_type property on the *type object* of the added column
-        with patch.object(mock_sql_col.type, 'python_type', side_effect=NotImplementedError("Test error")):
-            caplog.clear()
-            fields = SimpleModel.__columns__fields__()
-
-        # Check that the method ran despite the error and logged a warning
-        assert "Could not determine Python type for column 'mock_col'" in caplog.text
-        # Check that other valid fields were still processed
-        assert "name" in fields
-        assert "id" in fields # Ensure original fields are still found
-    finally:
-        # Restore original columns to avoid side effects
-        SimpleModel.__table__.columns = original_columns
-
-    # Cleanup instance
+    # Cleanup instance from dump_model test
     await Model.delete(instance_dump)
+
+    # --- Test __columns__fields__ error: NotImplementedError ---
+    # Define a mock type that raises error on python_type access
+    class MockColumnType(String): # Inherit from a real type
+        @property
+        def python_type(self):
+            raise NotImplementedError("Test error")
+
+    # Define a dedicated model using this problematic type
+    class ModelWithBadColType(Base, PKMixin):
+        __tablename__ = "test_bad_col_type" # Needs a unique table name
+        bad_column: Mapped[str] = mapped_column(MockColumnType, default=None)
+        good_column: Mapped[int] = mapped_column(default=0)
+
+    # Ensure the table is created for this temporary model if needed by __columns__fields__
+    # (It shouldn't strictly need DB interaction, but safer to ensure mapping is complete)
+    # async with Model.engine().engine.begin() as conn:
+    #     await conn.run_sync(ModelWithBadColType.metadata.create_all)
+    # Note: Creating tables here might interfere with cleanup or other tests.
+    # Let's assume __columns__fields__ works on the mapped class without DB table existing.
+
+    caplog.clear()
+    fields = ModelWithBadColType.__columns__fields__()
+
+    # Check that the method ran despite the error and logged a warning
+    assert "Could not determine Python type for column 'bad_column'" in caplog.text
+    # Check that other valid fields were still processed
+    assert "good_column" in fields
+    assert "id" in fields # From PKMixin
