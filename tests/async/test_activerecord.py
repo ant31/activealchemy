@@ -124,6 +124,32 @@ async def test_session_management(async_engine, unique_id):
 
 
 @pytest.mark.asyncio
+async def test_session_factory_retry(async_engine, caplog):
+    """Test session_factory retries getting factory if engine exists but factory is None."""
+    class RetryModel(Base, PKMixin):
+        __tablename__ = "retry_model_test"
+        name: Mapped[str] = mapped_column(init=True, default=None)
+
+    # Ensure engine is set, but manually unset the factory
+    RetryModel.set_engine(async_engine)
+    original_factory = RetryModel._session_factory
+    RetryModel._session_factory = None
+    assert RetryModel._session_factory is None # Verify it's unset
+
+    caplog.clear()
+    # Calling session_factory should trigger the warning and re-fetch
+    retrieved_factory = RetryModel.session_factory()
+
+    assert "Session factory not set for RetryModel, attempting retrieval from engine." in caplog.text
+    assert retrieved_factory is not None
+    assert retrieved_factory is original_factory # Should retrieve the correct one
+    assert RetryModel._session_factory is original_factory # Should be set back on the class
+
+    # Clean up - reset engine/factory if necessary, though test isolation should handle this.
+    # RetryModel.set_engine(async_engine) # Re-set to be sure
+
+
+@pytest.mark.asyncio
 async def test_instance_representation_and_data(unique_id):
     """Test instance representation (__str__, __repr__) and data methods (to_dict, dump_model, load, etc.)."""
     instance_name = f"repr_test_{unique_id}"
