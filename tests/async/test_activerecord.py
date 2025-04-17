@@ -1,6 +1,7 @@
 """
 Tests for activealchemy/activerecord.py
 """
+import uuid # Import uuid for tests
 import pytest
 from sqlalchemy.orm import Mapped, mapped_column  # Import Mapped and mapped_column
 
@@ -116,3 +117,80 @@ async def test_session_management(async_engine, unique_id):
 
     # Reset engine for SimpleModel (done in test_engine_management teardown implicitly if needed)
     # SimpleModel.set_engine(async_engine)
+
+
+@pytest.mark.asyncio
+async def test_instance_representation_and_data(unique_id):
+    """Test instance representation (__str__, __repr__) and data methods (to_dict, dump_model, load, etc.)."""
+    instance_name = f"repr_test_{unique_id}"
+    instance = SimpleModel(name=instance_name)
+    instance_id = instance.id # Get the generated UUID
+
+    # 1. Test __str__ and __repr__
+    expected_str = f"SimpleModel({instance_id})"
+    assert str(instance) == expected_str
+    assert repr(instance) == expected_str
+
+    # 2. Test id_key
+    # Transient object id_key might vary, let's test after save
+    # assert instance.id_key() == f"SimpleModel:transient_{id(instance)}" # Less reliable
+    await instance.save(commit=True)
+    assert instance.id_key() == f"SimpleModel:{instance_id}"
+
+    # 3. Test __columns__fields__
+    fields = SimpleModel.__columns__fields__()
+    assert "id" in fields
+    assert fields["id"][0] is uuid.UUID # Check type
+    # Default is complex (function call), check it exists
+    assert fields["id"][1] is not None
+
+    assert "name" in fields
+    assert fields["name"][0] is str
+    assert fields["name"][1] is None # Default is None
+
+    # 4. Test to_dict
+    data_dict = instance.to_dict()
+    assert data_dict == {"id": instance_id, "name": instance_name}
+
+    data_dict_fields = instance.to_dict(fields={"name"})
+    assert data_dict_fields == {"name": instance_name}
+
+    data_dict_meta = instance.to_dict(with_meta=True)
+    assert data_dict_meta["id"] == instance_id
+    assert data_dict_meta["name"] == instance_name
+    assert "__metadata__" in data_dict_meta
+    assert data_dict_meta["__metadata__"]["model"] == "tests.async.test_activerecord:SimpleModel"
+    assert data_dict_meta["__metadata__"]["table"] == "simple_models_activerecord"
+
+    # 5. Test dump_model (should be JSON serializable)
+    dumped_data = instance.dump_model()
+    # UUID should be converted to string
+    assert dumped_data == {"id": str(instance_id), "name": instance_name}
+    # Test if it's actually JSON serializable (basic check)
+    import json
+    try:
+        json.dumps(dumped_data)
+    except TypeError:
+        pytest.fail("dump_model output was not JSON serializable")
+
+    # 6. Test load
+    load_data = {"name": f"loaded_{unique_id}", "id": str(uuid.uuid4())} # Provide string UUID
+    loaded_instance = SimpleModel.load(load_data)
+    assert isinstance(loaded_instance, SimpleModel)
+    assert loaded_instance.name == f"loaded_{unique_id}"
+    # ID should be set, but might be string or UUID depending on load logic
+    # ActiveRecord.load currently just sets attributes, so it might remain a string.
+    # Let's check the type after potential conversion or direct set.
+    # If load is expected to handle type conversion, this needs adjustment.
+    # Current load just sets attributes, so it will be a string.
+    assert loaded_instance.id == load_data["id"] # Check if it matches the input string
+
+    # Test load with extra data (should be ignored)
+    load_data_extra = {"name": f"loaded_extra_{unique_id}", "extra": "ignored"}
+    loaded_extra = SimpleModel.load(load_data_extra)
+    assert loaded_extra.name == f"loaded_extra_{unique_id}"
+    assert not hasattr(loaded_extra, "extra")
+
+    # Test load with non-dict
+    with pytest.raises(ValueError, match="Input 'data' must be a dictionary"):
+        SimpleModel.load("not a dict") # type: ignore
