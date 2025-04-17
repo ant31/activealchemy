@@ -213,7 +213,7 @@ async def test_ensure_obj_session_gets_default_session(unique_id, caplog):
     # to get a default session and merge the object.
     # However, the refresh operation itself will fail later when trying to
     # load state from the DB for a non-existent object. We expect this error.
-    obtained_session = None
+    # obtained_session = None # Removed unused variable
     try:
         # We expect refresh to fail after acquiring the session
         await instance.refresh()
@@ -230,7 +230,7 @@ async def test_ensure_obj_session_gets_default_session(unique_id, caplog):
         log_lines = caplog.text.splitlines()
         session_log_line = next((line for line in log_lines if "Got default session" in line), None)
         assert session_log_line is not None
-        # Example log: "Got default session <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x...> for object ..."
+        # Example log: "Got default session <AsyncSession ...> for object ..."
         session_repr = session_log_line.split("Got default session ")[1].split(" for object")[0]
         print(f"Session representation from log: {session_repr}")
 
