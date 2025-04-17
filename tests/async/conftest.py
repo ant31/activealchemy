@@ -3,7 +3,7 @@ import os
 import pytest
 import pytest_asyncio
 from sqlalchemy import Column, String, text
-
+import sqlalchemy.exc
 from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
 
 
@@ -58,11 +58,30 @@ async def aclean_tables(async_engine):
             for table in tables: # Truncate in reverse dependency order
                 print(f"Truncating table: {table}") # Debug print
                 # Suppress errors if table doesn't exist
-                await session.execute(text(f'DELETE FROM "{table}"'))
-                print(f"Truncated table: {table}") # Debug print
+                try:
+                    await session.execute(text(f'DELETE FROM "{table}"'))
+                    print(f"Truncated table: {table}")
+                except sqlalchemy.exc.SQLAlchemyError as e:
+                    # This might happen if the table doesn't exist yet on the first run
+                    print(f"Error deleting from table {table}: {e}")
         # No explicit commit needed with session.begin()
 
     yield # Let the test run
+
+    # Add cleanup *after* the test as well to ensure clean state
+    print("aclean (post-yield)")
+    async with await ActiveRecord.get_session() as session:
+        print("Cleaning tables post-yield...")
+        async with session.begin():
+            print("Cleaning tables post-yield in transaction...")
+            # Iterate in reverse to handle potential foreign key dependencies if any exist
+            for table in reversed(tables):
+                print(f"Deleting from table post-yield: {table}")
+                try:
+                    await session.execute(text(f'DELETE FROM "{table}"'))
+                    print(f"Deleted from table post-yield: {table}")
+                except sqlalchemy.exc.SQLAlchemyError as e:
+                    print(f"Error deleting post-yield from table {table}: {e}")
 
 class TestModel(Base):
     """Test model for select tests"""
@@ -91,9 +110,11 @@ async def setup_select(async_engine, aclean_tables, test_model):
     model1 = TestModel(id="1", name="Test 1")
     model2 = TestModel(id="2", name="Test 2")
     model3 = TestModel(id="3", name="Test 3")
+    print("Adding test data...")
+    async with await TestModel.get_session() as session:
+        await TestModel.add_all([model1, model2, model3], commit=True, session=session)
 
-    async with await TestModel.get_session() as session, session.begin():
-        session.add_all([model1, model2, model3])
+        print("Adding test data... exit")
 
 @pytest_asyncio.fixture
 async def setup_mixin_tests(async_engine, aclean_tables,
