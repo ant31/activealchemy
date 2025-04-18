@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-from activealchemy.config import PostgreSQLConfigSchema
+from aiochemy.config import PostgreSQLConfigSchema
 
 logger = logging.getLogger(__name__)
 

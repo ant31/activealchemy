@@ -2,8 +2,8 @@
 
 APP_ENV ?= dev
 VERSION := `cat VERSION`
-package := activealchemy
-NAMESPACE := activealchemy
+package := aiochemy
+NAMESPACE := aiochemy
 MIGRATE_BINARY = goose
 GOTOOLS =
 GOTOOLS += $(MIGRATE_BINARY)
@@ -147,7 +147,7 @@ format-test:
 poetry-check:
 	poetry check --lock
 
-publish: clean
+publish:
 	poetry build
 	poetry publish
 
@@ -174,3 +174,8 @@ pyrightconfig:
 
 ipython:
 	poetry run ipython
+
+rename:
+	ack aiochemy -l | xargs -i{} sed -r -i "s/aiochemy/aiochemy/g" {}
+	ack Aiochemy -i -l | xargs -i{} sed -r -i "s/Aiochemy/Aiochemy/g" {}
+	ack AIOCHEMY -i -l | xargs -i{} sed -r -i "s/AIOCHEMY/AIOCHEMY/g" {}

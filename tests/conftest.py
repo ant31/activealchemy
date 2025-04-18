@@ -3,7 +3,7 @@ import uuid
 import pytest
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
-from activealchemy import ActiveRecord, Base, PKMixin, Schema, UpdateMixin
+from aiochemy import ActiveRecord, Base, PKMixin, Schema, UpdateMixin
 
 # --- Mock Model and Schema for test_schema.py ---
 

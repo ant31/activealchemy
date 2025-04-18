@@ -10,9 +10,9 @@ Version 2.4~Jeweler release on 2014/04/15
 
 Version 2.3~Corsair release on 2014/04/08
 
-	* bin/activealchemy: no longer installed with the python library
-	* bin/activealchemy: don't require to have activealchemy installed
-	* bin/activealchemy: fixed auto-completion
+	* bin/aiochemy: no longer installed with the python library
+	* bin/aiochemy: don't require to have aiochemy installed
+	* bin/aiochemy: fixed auto-completion
 
 Version 2.2~Elf release on 2014/04/04
 
@@ -23,15 +23,15 @@ Version 2.2~Elf release on 2014/04/04
 
 Version 2.1~Robot release on 2014/03/31
 
-	* bin/activealchemy: added Ruby on rails support
-	* bin/activealchemy: added bash completion
+	* bin/aiochemy: added Ruby on rails support
+	* bin/aiochemy: added bash completion
 
 Version 2.0~Alchemist release on 2014/03/25
 
-	* bin/activealchemy: can bootstrap new empty activealchemy project
-	* bin/activealchemy: can generate models from hibernate (xml) files
-	* bin/hibernate_to_sqlalchemy.py: moved to activealchemy/hbm.py
-	* activealchemy/hbm.py: rewritten with jinja2
+	* bin/aiochemy: can bootstrap new empty aiochemy project
+	* bin/aiochemy: can generate models from hibernate (xml) files
+	* bin/hibernate_to_sqlalchemy.py: moved to aiochemy/hbm.py
+	* aiochemy/hbm.py: rewritten with jinja2
 	* added templates: jinja2 files in tpl/
 
 Version 1.16~Pirate release on 2014/03/14

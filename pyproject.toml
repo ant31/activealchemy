@@ -1,5 +1,5 @@
 [project]
-name = "activealchemy"
+name = "aiochemy"
 version = "0.2.0"
 description = ""
 authors = [{email="2t.antoine@gmail.com", name="ant31"}]
@@ -12,7 +12,8 @@ dependencies = [
              "pydantic (>=2)",
              # "psycopg (>=3)",
              "psycopg2 (>=2)",
-             "asyncpg"
+             "asyncpg",
+             "alembic (>=1.15.2,<2.0.0)",
              ]
 
 [tool.poetry.group.dev.dependencies]

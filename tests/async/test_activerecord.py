@@ -1,5 +1,5 @@
 """
-Tests for activealchemy/activerecord.py
+Tests for aiochemy/activerecord.py
 """
 import json  # For dump_model test
 import logging  # Import logging
@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy import String  # Import String for MockColumnType
 from sqlalchemy.orm import Mapped, mapped_column  # Import Mapped and mapped_column
 
-from activealchemy import ActiveEngine, ActiveRecord, Base, PKMixin, PostgreSQLConfigSchema
+from aiochemy import ActiveEngine, ActiveRecord, Base, PKMixin, PostgreSQLConfigSchema
 
 # --- Fixtures ---
 
@@ -207,7 +207,7 @@ async def test_ensure_obj_session_gets_default_session(unique_id, caplog):
     instance = Model(name=instance_name)
     assert instance.obj_session() is None # Transient object has no session
 
-    caplog.set_level(logging.DEBUG, logger="activealchemy.activerecord") # Set log level
+    caplog.set_level(logging.DEBUG, logger="aiochemy.activerecord") # Set log level
     caplog.clear()
 
     # Calling refresh on a transient object will trigger _ensure_obj_session
@@ -328,10 +328,19 @@ async def test_crud_add_save(unique_id):
     # 1. Save with commit=True (using internal session)
     instance1_name = f"crud_add1_{unique_id}"
     instance_to_save = SimpleModel(name=instance1_name)
-    # Call save with commit=True and use the returned instance
-    instance1 = await instance_to_save.save(commit=True)
-    instance1_id = instance1.id # Now ID should be loaded
-    # Verify it's in the DB using an explicit session
+    instance1_id = None # Initialize id
+
+    # Use an explicit session for the save operation with async with
+    async with await SimpleModel.get_session() as save_session1:
+        instance1 = await instance_to_save.save(commit=True, session=save_session1)
+        instance1_id = instance1.id # ID should be loaded after save commits
+        # Session is automatically closed/committed here by async with
+
+    # Allow potential background tasks from session close to run
+    import asyncio
+    await asyncio.sleep(0.01) # Use a slightly longer sleep after session close
+
+    # Verify it's in the DB using another explicit session
     async with await SimpleModel.get_session() as verify_session1:
         found1 = await SimpleModel.get(instance1_id, session=verify_session1)
         assert found1 is not None
@@ -638,7 +647,7 @@ async def test_helpers_and_error_cases(unique_id, capsys, caplog):
     # --- Test dump_model error: JSON serialization ---
     # Mock to_jsonable_python to raise an error
     instance_dump = await Model(name=f"dump_err_{unique_id}").save(commit=True)
-    with patch('activealchemy.activerecord.to_jsonable_python', side_effect=TypeError("Cannot serialize")):
+    with patch('aiochemy.activerecord.to_jsonable_python', side_effect=TypeError("Cannot serialize")):
         caplog.clear()
         # dump_model should catch the error and log it
         dumped = instance_dump.dump_model()

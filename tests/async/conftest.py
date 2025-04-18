@@ -5,7 +5,7 @@ import pytest_asyncio
 import sqlalchemy
 from sqlalchemy import Column, String, text
 
-from activealchemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
+from aiochemy import ActiveEngine, ActiveRecord, Base, PostgreSQLConfigSchema
 
 
 # Database configuration for tests

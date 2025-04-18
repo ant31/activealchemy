@@ -1,5 +1,5 @@
 """
-Tests for activealchemy/mixins.py
+Tests for aiochemy/mixins.py
 """
 import asyncio
 import uuid
