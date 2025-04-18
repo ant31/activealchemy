@@ -1,4 +1,5 @@
-from activealchemy.activerecord import ActiveRecord, Base
+from activealchemy.activerecord import ActiveRecord
+from activealchemy.base import Base
 from activealchemy.config import PostgreSQLConfigSchema
 from activealchemy.engine import ActiveEngine
 from activealchemy.mixins import PKMixin, UpdateMixin

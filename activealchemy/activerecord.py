@@ -14,13 +14,13 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import (
     ColumnProperty,
-    DeclarativeBase,
     Mapper,
 )
 from typing_extensions import deprecated
 
 # Assuming ActiveEngine is imported from the refactored engine file
 from activealchemy.engine import ActiveEngine
+from activealchemy.schema import Schema
 from activealchemy.select import Select
 
 logger = logging.getLogger(__name__)
@@ -40,11 +40,13 @@ class ActiveRecord(AsyncAttrs):
     """
 
     # --- Class Attributes ---
+
     __tablename__: ClassVar[str]  # Must be defined by subclasses
     __schema__: ClassVar[str] = "public"  # Default schema
     __table__: ClassVar[FromClause]  # Populated by SQLAlchemy mapper
     __mapper__: ClassVar[Mapper[Any]]  # Populated by SQLAlchemy mapper
-
+    __pydantic_schema__: ClassVar[type[Schema]]  # Pydantic schema class for serialization
+    __pydantic_initialized__: ClassVar[bool] = False  # Flag for Pydantic schema initialization
     # Direct reference to the configured ActiveEngine instance
     __active_engine__: ClassVar[ActiveEngine]
     # Session factory associated with this class (set via engine)
@@ -807,11 +809,15 @@ class ActiveRecord(AsyncAttrs):
                     logger.error(f"Error executing count query for {cls.__name__} with new session: {e}", exc_info=True)
                     raise e
 
+    @classmethod
+    def pydantic_schema(cls) -> type[Schema]:
+        """Return the Pydantic schema for this model."""
+        if not cls.__pydantic_initialized__:
+            cls.__pydantic_schema__ = Schema[cls]
+            # Initialize the Pydantic schema if not already done
+            cls.__pydantic_schema__.add_fields(**cls.__columns__fields__())
+            cls.__pydantic_initialized__ = True
+        return cls.__pydantic_schema__
 
-# --- Base Declarative Class ---
-
-
-class Base(ActiveRecord, DeclarativeBase):
-    """Convenience base class combining ActiveRecord and DeclarativeBase."""
-
-    pass
+    def to_pydantic(self) -> Schema:
+        return self.pydantic_schema()(**self.to_dict())

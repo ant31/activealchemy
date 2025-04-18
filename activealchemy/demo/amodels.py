@@ -34,7 +34,8 @@ class ACountry(ADemoBase, PKMixin, UpdateMixin):
     """Country model."""
 
     __tablename__ = "country"
-
+    # __pydantic_schema__ = ACountrySchema
+    __pydantic_initialized__ = False
     name: Mapped[str] = mapped_column(init=True)
     code: Mapped[str] = mapped_column(init=True)
     cities: Mapped[list["ACity"]] = relationship(
